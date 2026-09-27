@@ -35,23 +35,6 @@ A few views of the editor UI, asset management and example maps:
 * **Geri al / İleri al** (undo-redo), klavye kısayolları, sahne ağacı
 * **Önizleme (play) modu**: NPC'ler waypoint'ler arasında devriye yapar
 * **2048/1024/512 ölçekli grid**, prosedürel zemin dokusu, sınır çerçevesi
-## 📸 Ekran Görüntüleri (Screenshots)
->>>>>>> 6080c23a588164028d88951e53e4827e2c351b87
-
-Editör arayüzünden, varlık yönetiminden ve örnek haritalardan bazı görünümler:
-
-### 🖥️ Ana Düzenleyici Görünümü
-![Ana Editör Görünümü](docs/screenshots/editor.png)
-
-### 📦 Varlık (Asset) Yönetimi
-![Varlık Paneli](docs/screenshots/assets.png)
-
-### 🗺️ Harita ve Seviye Tasarımı
-![Harita Görünümü](docs/screenshots/map.png)
-
-### ❓ Yardım ve Kılavuz Menüsü
-![Yardım Menüsü](docs/screenshots/help.png)
----
 
 ## 1. Running it
 
