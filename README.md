@@ -1,5 +1,4 @@
 # Three.js 3D Map Editor (Level Studio)
-
 A modern 3D level editor for web games, written with **Three.js** and structured
 as **Vanilla JavaScript / ES6 modules**.
 
