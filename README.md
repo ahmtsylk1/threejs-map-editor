@@ -3,6 +3,7 @@
 A modern 3D level editor for web games, written with **Three.js** and structured
 as **Vanilla JavaScript / ES6 modules**.
 
+<<<<<<< HEAD
 * **Dynamic map size** of 2048 / 1024 / 512 units
 * **Asset Panel** on the left (add by click or drag-and-drop)
 * **Inspector** on the right: position / rotation / scale + gameplay fields
@@ -27,7 +28,31 @@ A few views of the editor UI, asset management and example maps:
 
 ### ❓ Help and reference menu
 ![Help menu](docs/screenshots/help.png)
+=======
+* 2048 / 1024 / 512 birimlik **dinamik harita boyutu**
+* Sol panelde **Asset Paneli** (tıkla veya sürükle-bırak ile ekleme)
+* Sağ panelde **Özellik Paneli (Inspector)**: konum / rotasyon / ölçek + oyun alanları
+* **TransformControls** ile taşıma, döndürme, ölçekleme (çoklu seçim pivotu destekli)
+* **JSON dışa/içe aktarma**, tarayıcıya otomatik kayıt
+* **Geri al / İleri al** (undo-redo), klavye kısayolları, sahne ağacı
+* **Önizleme (play) modu**: NPC'ler waypoint'ler arasında devriye yapar
+* **2048/1024/512 ölçekli grid**, prosedürel zemin dokusu, sınır çerçevesi
+## 📸 Ekran Görüntüleri (Screenshots)
+>>>>>>> 6080c23a588164028d88951e53e4827e2c351b87
 
+Editör arayüzünden, varlık yönetiminden ve örnek haritalardan bazı görünümler:
+
+### 🖥️ Ana Düzenleyici Görünümü
+![Ana Editör Görünümü](docs/screenshots/editor.png)
+
+### 📦 Varlık (Asset) Yönetimi
+![Varlık Paneli](docs/screenshots/assets.png)
+
+### 🗺️ Harita ve Seviye Tasarımı
+![Harita Görünümü](docs/screenshots/map.png)
+
+### ❓ Yardım ve Kılavuz Menüsü
+![Yardım Menüsü](docs/screenshots/help.png)
 ---
 
 ## 1. Running it
