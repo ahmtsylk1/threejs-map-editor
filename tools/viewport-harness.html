@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Viewport benzetici — modal sığma testi</title>
+<!--
+  tools/viewport-harness.html
+  ============================================================================
+  test-modal-fit.js'in kullandığı iframe yerleştiricisi.
+
+  NEDEN VAR?
+  ---------
+  Puppeteer/headless Chrome'da pencere boyutu değiştirilemez; `setViewport`
+  yalnızca sayfa boyutunu değiştirir, iframe kullanılmadığında editörün iç
+  `window.innerWidth/innerHeight` değerleri değişmez. CSS'in gerçekten
+  farklı ekranlarda nasıl davrandığını ölçebilmek için editörü istenen
+  boyutta bir iframe içine koyarız — iframe'in kendi viewport'u tam olarak
+  o boyuttur.
+
+  Kullanım:  /tools/viewport-harness.html?w=560&h=460
+
+  Ölçüm öncesi modal giriş animasyonu devre dışı bırakılır: animasyon
+  `translateY + scale` uyguladığı için kutu geometrisi ölçüm anında kayar ve
+  headless'ta kare üretimi yavaş olduğundan animasyon "bitmemiş" kalabilir.
+  ============================================================================
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  iframe { border: 0; display: block; }
+</style>
+</head>
+<body>
+<script>
+  const q = new URLSearchParams(location.search);
+  const w = +(q.get('w') || 1000);
+  const h = +(q.get('h') || 700);
+  const f = document.createElement('iframe');
+  f.width = w;
+  f.height = h;
+  f.src = '/index.html';
+  document.body.append(f);
+
+  /** Test betiği bunu await eder; editör ölçüme hazır olduğunda true döner. */
+  window.__ready = new Promise((res) => {
+    f.addEventListener('load', async () => {
+      const w2 = f.contentWindow, d2 = f.contentDocument;
+      try {
+        const s = d2.createElement('style');
+        s.textContent = '.modal,.modal-backdrop{animation:none !important}';
+        d2.head.append(s);
+      } catch (_) { /* ölçüm yine de çalışır, sadece değer kayabilir */ }
+      try { if (w2.editor?._firstLoad) await w2.editor._firstLoad; } catch (_) {}
+      for (let i = 0; i < 60 && !w2.editor; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      setTimeout(() => res({ editorVar: !!w2.editor }), 500);
+    });
+  });
+</script>
+</body>
+</html>

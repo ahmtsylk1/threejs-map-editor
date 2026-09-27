@@ -1,0 +1,29 @@
+{
+  "name": "threejs-map-editor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Three.js tabanlı 3B Harita Editörü (Level Editor / Studio) - Vanilla JS + ES6 modülleri",
+  "type": "module",
+  "scripts": {
+    "start": "python dev_server.py 5174",
+    "dev": "python dev_server.py 5174",
+    "serve": "npx --yes serve@14 . -l 5173",
+    "scan": "node tools/scan-assets.mjs",
+    "thumbs": "node tools/generate-thumbs.mjs",
+    "thumbs:force": "node tools/generate-thumbs.mjs --hepsini",
+    "transcoder": "node tools/fetch-transcoder.mjs",
+    "setup:assets": "npm run scan && npm run transcoder && npm run thumbs"
+  },
+  "keywords": [
+    "threejs",
+    "level-editor",
+    "map-editor",
+    "webgl",
+    "gltf",
+    "asset-pipeline"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "puppeteer": "^25.12.0"
+  }
+}

@@ -1,0 +1,96 @@
+# ============================================================================
+# .gitattributes — threejs-map-editor
+# ----------------------------------------------------------------------------
+# NEDEN GEREKLİ?
+# --------------
+# `core.autocrlf` tanımsızsa Git for Windows `true` varsayar. Bu durumda depo
+# LF saklar (doğru) ama çalışma kopyası CRLF olur. Sonuç: Windows'ta bir
+# dosyayı açıp kaydettiğinizde TÜM satırlar değişmiş görünür ve `git status`
+# kullanılamaz hale gelir — "sadece 1 satır değişti" sandığınız halde 400
+# satırlık sahte fark çıkar.
+#
+# Buradaki kurallar iki işi birden garanti eder:
+#   1. Metin dosyaları depoda VE çalışma kopyasında LF (her platformda aynı),
+#   2. İKİLİ varlık dosyaları metin sanılıp bozulmaz.
+#
+# KURAL 2 DAHA ÖNEMLİ: `text=auto` sezgisel bir algılama yapar ve nadiren
+# yanılır. Bir .glb veya .wasm dosyası yanlışlıkla metin kabul edilirse dosya
+# "normalleştirilir" ve BOZULUR. Kırık bir GLB, hata ayıklaması çok zor olan
+# bir hatadır (manifest'te sağlam görünür, yüklenince patlar). Bu yüzden
+# her ikili uzantı AÇIKÇA listelenmiştir.
+# ============================================================================
+
+# --- Varsayılan: metin, LF satır sonu --------------------------------------
+# `text=auto`  → git kendi sezgiseliyle metin/ikili ayrımını yapar
+# `eol=lf`     → çalışma kopyasında da LF kalır (çapraz platform tutarlı)
+* text=auto eol=lf
+
+# --- İkili görseller ---------------------------------------------------------
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+
+# --- 3B modeller ve sıkıştırılmış içerik ------------------------------------
+# public/assets/imported/*.glb  (400 model, 10.3 MB)
+*.glb   binary
+# .gltf JSON tabanlıdır: metin olarak ele alınır, satır sonları düzeltilir.
+*.gltf  text eol=lf
+*.obj   text eol=lf
+*.bin   binary
+*.basis binary
+
+# .npy: NumPy dizisi — başlıkta metin, gövde HAM İKİLİ. Git dosya düzeyinde
+# çalıştığı için dosyanın TAMAMI ikili sayılmak zorundadır (aksi hâlde gövde
+# bozulur). `*.npy binary` zaten `testdata/** -text` ile de örtüşüyor.
+*.npy   binary
+# .smd düz ASCII metindir; satır sonu düzeltmesi YALNIZCA kaynak/veri
+# klasörleri dışında anlamlıdır. Test fixture'ları için `testdata/** -text`
+# kuralı bunu geçersiz kılar.
+*.smd   text eol=lf
+
+# --- WASM (KTX2 transcoder) -------------------------------------------------
+*.wasm  binary
+
+# --- Test verisi: BAYT BAYT DOKUNULMAZ --------------------------------------
+# `testdata/**` bilerek `-text` (yani "satır sonu DÖNÜŞTÜRME") olarak işaretlenir.
+#
+# NEDEN? Test verisi normalleştirilmemelidir. Somut kanıt: ilk denemede
+# `*.smd text eol=lf` kuralı şu iki dosyayı bozdu —
+#   testdata/crlf_bom.smd  : 419 bayt / 25 CRLF / BOM  →  394 bayt / 0 CRLF / BOM YOK
+# Bu dosya ADIYLA CRLF ve BOM işlemesini test etmek için var; normalize
+# edilirse test hiçbir şey sınamaz. Üstelik `testdata/user/moradon.smd` ikili
+# bir float32 ızgaradır: içindeki rastgele bir 0x0D 0x0A çiftinin 0x0A'ya
+# çökmesi TÜM SONRAKİ BAYTLARI kaydırır ve yükseklik verisini bozar.
+# `git clone` sonrası her platformda fixture'ın aynen gelmesi gerekir.
+testdata/** -text
+
+# --- Arayüz / betik dosyaları ------------------------------------------------
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.json  text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# --- Dışa aktarma sürümleri --------------------------------------------------
+# Bu betikler doğrudan Windows'ta çalıştırılır; CRLF tercih edilir.
+# (DİKKAT: gitattributes satır içi `#` yorumlarını DESTEKLEMEZ. Yorum ayrı
+# bir satırda olmalıdır; yoksa "#" geçerli bir öznitelik adı sayılır ve git
+# "# is not a valid attribute name" hatası verir.)
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# --- Dil bazlı varsayılanlama ------------------------------------------------
+# Git LFS kullanılıyorsa ikili dosyalar otomatik yönlendirilir.
+# Bu depoda LFS KULLANILMIYOR: en büyük dosya 2.9 MB, LFS'in kazandıracağı
+# bir şey yok ve LFS olmadan da depo GitHub'ın 100 MB/dosya sınırının çok
+# altında. İleride 100 MB'ı aşan bir varlık eklenirse bu satır açılmalı.

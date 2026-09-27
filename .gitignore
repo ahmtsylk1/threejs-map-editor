@@ -1,0 +1,172 @@
+# ============================================================================
+# .gitignore — threejs-map-editor
+# ----------------------------------------------------------------------------
+# KURALLAR
+#   1) Bağımlılıklar ve geçici çıktılar DIŞARIDA (yeniden üretilebilirler).
+#   2) Kaynak kod, test verisi, varlık kütüphanesi ve üretim araçları İÇERİDE.
+#   3) Sıra önemlidir: gitignore'da SONRAKİ kural kazanır. Bu yüzden tüm
+#      "hariç tut" kuralları üstte, "mutlaka dahil et" kuralları EN ALTTA.
+# ============================================================================
+
+# --- 1) Bağımlılıklar -------------------------------------------------------
+# `npm ci` ile birebir aynı sürümler `package-lock.json`'dan kurulur.
+# node_modules 23 MB tutuyor ve sürüm kontrolünde anlamı yok.
+node_modules/
+jspm_packages/
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+
+# --- 2) Ortam değişkenleri / SIRLAR -----------------------------------------
+# ASLA commit edilmemeli. `.env.example` şablonu istisnadır: içinde gerçek
+# anahtar bulunmaz, sadece anahtar ADLARI yer alır.
+.env
+.env.*
+!.env.example
+
+# --- 3) Log dosyaları ------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- 4) İşletim sistemi artıkları -------------------------------------------
+# Windows / macOS / Linux
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# --- 5) Editör / IDE ayarları ----------------------------------------------
+# Klasör düzeyinde kişisel; repo'da tutmak ekipte gürültü yaratır.
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+.*.sw?
+
+# --- 6) Python (dev_server.py) ----------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+pip-wheel-metadata/
+
+# --- 7) Derleme / paketleme çıktıları --------------------------------------
+# Bu proje derleme adımı kullanmaz (saf ES6 + importmap), ama yine de
+# yanlışlıkla oluşan çıktılar repoya girmesin.
+.cache/
+.temp/
+tmp/
+.temp-cache/
+.next/
+.nuxt/
+.svelte-kit/
+.parcel-cache/
+*.tsbuildinfo
+
+# --- 8) Test ve kapsam çıktıları -------------------------------------------
+coverage/
+.nyc_output/
+*.lcov
+
+# --- 9) Yerel veritabanı / oturum ------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+.cache/
+
+# ============================================================================
+# 10) DEPODA KALACAKLAR — Aşağıdaki kurallar üsttekileri ERETLİYOR
+# ----------------------------------------------------------------------------
+# Neden bu kadar açık? Üstteki geniş kurallar (örn. `dist/`, `lib/`, `tmp/`)
+# yanlışlıkla bu klasörleri de kapsayabilirdi. "Dışarıda tut" kararları
+# kasıtlı olduğu için burada görünür biçimde tekrar edilir.
+# ============================================================================
+
+# Test verisi — regresyon paketinin girdisi. `testdata/user/` gerçek dünya
+# dosyalarıdır (Moradon.npy vb.) ve paket bunları kullandığı için şarttır.
+!testdata/
+!testdata/**
+
+# Dış model kütüphanesi + üretilmiş thumbnail'lar. `scan-assets.mjs` ve
+# `generate-thumbs.mjs` bunları üretir ama REGENERE EDİLEMEZ: kaynak proje
+# (World of Claudecraft) kullanıcıda olmayabilir. Depoda tutmak, `git clone`
+# sonrası uygulamayı DOĞRUDAN ÇALIŞIR kılar (3B kütüphane + görseller hazır).
+!public/assets/thumbs/
+!public/assets/thumbs/**
+!public/assets/imported/
+!public/assets/imported/**
+
+# KTX2 transcoder (Basis). `fetch-transcoder.mjs` indirir; three.js sürümüyle
+# birebir eşleşmesi gerektiği için sürüm kilitli gelir, depoda tutulur.
+!public/vendor/
+!public/vendor/**
+
+# Üretim araçları — değiştirilebilir kaynak kod, CI'da çalıştırılır.
+!tools/
+!tools/**
+
+# Kilit dosyası: `npm ci` için zorunlu (kurulumun tekrarlanabilir olmasını
+# sağlar). Yalnızca `node_modules/` dışarıda kalmalıdır.
+!package-lock.json
+
+# ============================================================================
+# 11) İSTİSNA KURALLARI — BUNLAR EN SONDA OLMALI
+# ----------------------------------------------------------------------------
+# `tools/shot-*.js` ve `tools/shot-i18n.js` geliştirme sırasında ekran
+# görüntüsü PNG'si üretir. Test KODU depoda kalır, üretilen GÖRÜNTÜ kalınmaz.
+#
+# NEDEN BURADA, 10. bölümden SONRA?
+# ---------------------------------
+# `!tools/**` kuralı "tools/ altındaki her şeyi dahil et" der ve gitignore'da
+# SONRAKİ kural kazanır. Bu satır 10. bölümden önceydiyse `!tools/**` onu
+# geçersız kılardı ve ekran görüntüleri depoya girerdi — ilk denemede tam olarak
+# bu oldu ve `git check-ignore` ile yakalandı. Bir kuralın "ilk yazıldığı yere"
+# değil, "doğru sırada olduğu yere" konması gerekir.
+tools/_shot-*.png
+tools/_shot-*.jpg
+tools/_shot-*.webp
+
+# Commit mesajı taslakları. `git commit -F <dosya>` ile çalışırken oluşturulur
+# ve depoya GİRMEMELİDİR (ilk denemede yanlışlıkla commit edilmişti).
+.git_commit_msg.txt
+*.commitmsg

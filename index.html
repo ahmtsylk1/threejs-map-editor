@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Three.js Map Editor — 3D Harita Editörü</title>
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <!--
+    ============================================================================
+    IMPORT MAP
+    three.js ve addons (OrbitControls / TransformControls) modüllerini
+    tarayıcıda "three" adıyla çözer. Versiyon sabitlenmiştir (0.160.0).
+    ============================================================================
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="app">
+
+    <!-- ==================== ÜST ÇUBUK (TOOLBAR) ==================== -->
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" class="brand-mark" aria-hidden="true">
+          <path d="M12 2 21 7v10l-9 5-9-5V7l9-5Z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M12 12 21 7M12 12v10M12 12 3 7" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".65"/>
+        </svg>
+        <div class="brand-text">
+          <strong data-i18n="app.brand.title">Map Editor</strong>
+          <span data-i18n="app.brand.sub">Three.js Level Studio</span>
+        </div>
+      </div>
+
+      <div class="tb-group">
+        <span class="tb-label" data-i18n="topbar.group.mapsize">Harita Boyutu</span>
+        <div class="segmented" id="mapSizeGroup" role="group" aria-label="Harita boyutu"
+             data-i18n-attr="aria-label:topbar.aria.mapsize">
+          <button class="seg" data-size="2048">2048</button>
+          <button class="seg" data-size="1024">1024</button>
+          <button class="seg" data-size="512">512</button>
+        </div>
+        <label class="field-inline">
+          <span class="tb-label" data-i18n="topbar.group.cell">Hücre</span>
+          <select id="cellSizeSelect" class="select" title="Grid hücre boyutu (birim)"
+                  data-i18n-attr="title:topbar.cell.title">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8" selected>8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="tb-group" id="viewToggles">
+        <span class="tb-label" data-i18n="topbar.group.view">Görünüm</span>
+        <button class="tb-btn toggle is-active" data-toggle="showGrid"
+                data-i18n="topbar.view.grid" data-i18n-attr="title:topbar.view.grid.title">Izgara</button>
+        <button class="tb-btn toggle is-active" data-toggle="showAxes"
+                data-i18n="topbar.view.axes" data-i18n-attr="title:topbar.view.axes.title">Eksen</button>
+        <button class="tb-btn toggle is-active" data-toggle="showBounds"
+                data-i18n="topbar.view.bounds" data-i18n-attr="title:topbar.view.bounds.title">Sınır</button>
+        <button class="tb-btn toggle is-active" data-toggle="showChecker"
+                data-i18n="topbar.view.checker" data-i18n-attr="title:topbar.view.checker.title">Doku</button>
+        <button class="tb-btn toggle is-active" data-toggle="snap"
+                data-i18n="topbar.view.snap" data-i18n-attr="title:topbar.view.snap.title">Yapış</button>
+      </div>
+
+      <div class="tb-spacer"></div>
+
+      <div class="tb-group">
+        <button class="tb-btn" id="btnUndo" title="Geri al (Ctrl+Z)"
+                data-i18n-attr="title:topbar.btn.undo.title">
+          <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h9a6 6 0 1 1 0 12h-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <button class="tb-btn" id="btnRedo" title="İleri al (Ctrl+Y)"
+                data-i18n-attr="title:topbar.btn.redo.title">
+          <svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9h-9a6 6 0 1 0 0 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="tb-group">
+        <button class="tb-btn accent" id="btnPlay" title="Oyun önizlemesi (Space)"
+                data-i18n-attr="title:topbar.btn.play.title">
+          <svg viewBox="0 0 24 24" class="ic-play"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg>
+          <svg viewBox="0 0 24 24" class="ic-pause"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg>
+          <span class="btn-text" data-i18n="topbar.btn.play">Önizle</span>
+        </button>
+      </div>
+
+      <!-- İkincil dosya işlemleri: dar ekranda metinleri gizlenir -->
+      <div class="tb-group">
+        <button class="tb-btn secondary" id="btnNew" title="Yeni harita"
+                data-i18n="topbar.btn.new" data-i18n-attr="title:topbar.btn.new.title">Yeni</button>
+        <button class="tb-btn secondary" id="btnSave" title="Tarayıcıya kaydet (Ctrl+S)"
+                data-i18n="topbar.btn.save" data-i18n-attr="title:topbar.btn.save.title">Kaydet</button>
+        <button class="tb-btn secondary" id="btnLoad" title="Tarayıcıdan yükle"
+                data-i18n="topbar.btn.load" data-i18n-attr="title:topbar.btn.load.title">Geri Yükle</button>
+      </div>
+
+      <div class="tb-group">
+        <button class="tb-btn primary" id="btnExport" title="JSON olarak dışa aktar"
+                data-i18n="topbar.btn.export" data-i18n-attr="title:topbar.btn.export.title">Export JSON</button>
+        <button class="tb-btn primary" id="btnImport"
+                title="JSON proje · .npy yükseklik haritası · .smd model yükle (Ctrl+O)"
+                data-i18n="topbar.btn.import" data-i18n-attr="title:topbar.btn.import.title">Import</button>
+        <button class="tb-btn icon-only" id="btnHelp" title="Yardım / kısayollar (?)"
+                data-i18n-attr="title:topbar.btn.help.title">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16.6" r="1.1" fill="currentColor"/></svg>
+        </button>
+      </div>
+
+      <!--
+        DİL SEÇİCİ
+        ------------------------------------------------------------------
+        Neden segmentli düğme, neden <select> değil? Yalnızca iki dil var ve
+        ikisi de üst çubukta her zaman görünür olmalı; bir <select> açılır
+        listesi iki seçenek için gereksiz bir tıklama katmanı eklerdi.
+
+        Düğmeler Topbar tarafından JS ile üretilir (Topbar._buildLanguagePicker)
+        çünkü aktif dil bir veri kaynağından (`i18n.language`) gelir ve
+        `role="radiogroup"` + `aria-checked` ile duyurulur.
+      -->
+      <div class="tb-group tb-lang">
+        <span class="tb-label" data-i18n="lang.label">Dil</span>
+        <div class="segmented small" id="langGroup" role="radiogroup"
+             aria-label="Language" data-i18n-attr="aria-label:lang.label"></div>
+      </div>
+    </header>
+
+    <!-- ==================== GÖVDE: SOL / MERKEZ / SAĞ ==================== -->
+    <main class="workspace">
+
+      <!-- ---------- SOL PANEL: ASSET + OUTLINER ---------- -->
+      <aside class="sidebar left" id="leftSidebar">
+        <div class="resizer" data-resize="left"></div>
+
+        <!-- Asset Paneli -->
+        <section class="panel grow">
+          <div class="panel-head">
+            <h2 data-i18n="panel.assets">Asset Paneli</h2>
+            <span class="chip" id="assetCountChip">0</span>
+          </div>
+          <div class="panel-body">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" class="search-ic"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <input type="search" id="assetSearch" class="input" autocomplete="off"
+                     placeholder="Asset ara (küp, ağaç, fence, torch…)"
+                     aria-label="Asset ara"
+                     data-i18n-attr="placeholder:asset.search.placeholder;aria-label:asset.search.aria" />
+            </div>
+            <!--
+              Bu ipucu gömülü <b> etiketleri içerdiği için `data-i18n` KULLANILAMAZ:
+              I18nManager çocuk düğümü olan hedefi bilerek atlar (aksi halde
+              `textContent` yazımı ikonları/etiketleri silerdi). Bunun yerine
+              parçalar ayrı çevrilir, CSS `gap` ile aralanır.
+            -->
+            <p class="hint" id="assetHint">
+              <span data-i18n="asset.hint.before">Sahneye eklemek için</span>
+              <b data-i18n="asset.hint.action">tıkla</b>
+              <span data-i18n="asset.hint.or">veya</span>
+              <b data-i18n="asset.hint.action2">sürükle-bırak</b>
+              <span data-i18n="asset.hint.after">.</span>
+            </p>
+            <div class="asset-categories" id="assetCategories"></div>
+          </div>
+        </section>
+
+        <!-- Outliner -->
+        <section class="panel" id="outlinerPanel">
+          <div class="panel-head">
+            <h2 data-i18n="panel.outliner">Sahne Ağacı</h2>
+            <div class="head-actions">
+              <button class="mini" id="btnSelectAll" title="Tümünü seç (Ctrl+A)"
+                      data-i18n="outliner.btn.selectAll"
+                      data-i18n-attr="title:outliner.btn.selectAll.title">Tümü</button>
+              <button class="mini danger" id="btnDeleteSel" title="Seçili sil (Del)"
+                      data-i18n="outliner.btn.delete"
+                      data-i18n-attr="title:outliner.btn.delete.title">Sil</button>
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <div class="outliner" id="outlinerList"></div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- ---------- MERKEZ: VIEWPORT ---------- -->
+      <section class="viewport" id="viewport">
+        <canvas id="scene-canvas"></canvas>
+
+        <!-- Viewport üst-sol araç kutusu: Transform modu -->
+        <div class="vp-panel vp-tl">
+          <div class="segmented small" id="modeGroup" role="group" aria-label="Transform modu"
+               data-i18n-attr="aria-label:topbar.aria.mode">
+            <button class="seg is-active" data-mode="translate" title="Taşı (G / W)"
+                    data-i18n-attr="title:vp.mode.translate.title">
+              <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m12 3 2.5 2.5M12 3 9.5 5.5M12 21l2.5-2.5M12 21l-2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button class="seg" data-mode="rotate" title="Döndür (R / E)"
+                    data-i18n-attr="title:vp.mode.rotate.title">
+              <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 3v4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="seg" data-mode="scale" title="Boyutlandır (T / S)"
+                    data-i18n-attr="title:vp.mode.scale.title">
+              <svg viewBox="0 0 24 24"><path d="M5 19 19 5M9 5h10v10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 13v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/></svg>
+            </button>
+          </div>
+          <div class="segmented small" id="spaceGroup" role="group" aria-label="Uzay"
+               data-i18n-attr="aria-label:topbar.aria.space">
+            <button class="seg is-active" data-space="world" title="Dünya uzayı"
+                    data-i18n="vp.space.world" data-i18n-attr="title:vp.space.world.title">World</button>
+            <button class="seg" data-space="local" title="Yerel uzay"
+                    data-i18n="vp.space.local" data-i18n-attr="title:vp.space.local.title">Local</button>
+          </div>
+          <label class="switch" title="Dönüş adımı (derece)"
+                 data-i18n-attr="title:vp.rotSnap.title">
+            <input type="checkbox" id="rotSnapToggle" /><span></span>
+            <em>15°</em>
+          </label>
+        </div>
+
+        <!-- Viewport sağ-üst: kamera yardımcıları -->
+        <div class="vp-panel vp-tr">
+          <button class="ghost-btn" id="btnFocus" title="Seçime odaklan (F)"
+                  data-i18n="vp.btn.focus" data-i18n-attr="title:vp.btn.focus.title">Odakla</button>
+          <button class="ghost-btn" id="btnFrameAll" title="Tüm haritayı çerçeçe al (Home)"
+                  data-i18n="vp.btn.frameAll" data-i18n-attr="title:vp.btn.frameAll.title">Tüm Harita</button>
+          <button class="ghost-btn" id="btnTopView" title="Üstten görünüm (7)"
+                  data-i18n="vp.btn.topView" data-i18n-attr="title:vp.btn.topView.title">Üst</button>
+        </div>
+
+        <!-- Viewport alt-sol ipuçları -->
+        <div class="vp-hint" id="vpHint" data-i18n="vp.hint.mouse">
+          Sol tık: seç · Shift+Sol tık: çoklu seçim · Sağ tık: yörünge · Orta tık: kaydır · Tekerlek: yakınlaştır
+        </div>
+
+        <!-- Sürükle-bırak ipucu (içerik JS ile güncellenir) -->
+        <div class="drop-hint" id="dropHint" data-i18n="vp.dropHint">Bırakın: .npy arazi · .smd / .glb model · .json proje</div>
+      </section>
+
+      <!-- ---------- SAĞ PANEL: INSPECTOR + HARİTA AYARLARI ---------- -->
+      <aside class="sidebar right" id="rightSidebar">
+        <div class="resizer" data-resize="right"></div>
+
+        <section class="panel grow">
+          <div class="panel-head">
+            <h2 data-i18n="panel.inspector">Özellikler</h2>
+            <span class="chip" id="selCountChip">Seçim yok</span>
+          </div>
+          <div class="panel-body" id="inspector"></div>
+        </section>
+
+        <section class="panel" id="mapPanel">
+          <div class="panel-head collapsible is-open" data-collapse="mapPanelBody">
+            <h2 data-i18n="panel.map">Harita Ayarları</h2>
+            <svg viewBox="0 0 24 24" class="caret"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div class="panel-body" id="mapPanelBody">
+            <label class="row">
+              <span data-i18n="map.field.size">Boyut (birim)</span>
+              <input type="number" class="input" id="mapSizeNumber" min="64" max="8192" step="64" />
+            </label>
+            <label class="row">
+              <span data-i18n="map.field.groundColor">Zemin rengi</span>
+              <input type="color" class="color" id="groundColor" value="#1e242f" />
+            </label>
+            <label class="row">
+              <span data-i18n="map.field.gridColor">Grid rengi</span>
+              <input type="color" class="color" id="gridColor" value="#3a4658" />
+            </label>
+            <label class="row">
+              <span data-i18n="map.field.fog">Saydamlık</span>
+              <input type="range" class="range" id="fogRange" min="0" max="1" step="0.01" />
+            </label>
+            <div class="stat-grid" id="mapStats"></div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <!-- ==================== ALT DURUM ÇUBUĞU ==================== -->
+    <footer class="statusbar">
+      <span class="st" id="stMode">Taşı</span>
+      <span class="sep"></span>
+      <span class="st" id="stObjects">Nesne: 0</span>
+      <span class="sep"></span>
+      <span class="st" id="stSelection">Seçim: 0</span>
+      <span class="sep"></span>
+      <span class="st" id="stPointer">x: 0  y: 0  z: 0</span>
+      <span class="grow"></span>
+      <span class="st" id="stPlay" hidden data-i18n="status.playing">ÖNİZLEME</span>
+      <span class="sep"></span>
+      <span class="st" id="stFps">— fps</span>
+    </footer>
+  </div>
+
+  <!-- Gizli dosya girdisi — kabul edilen biçimler JS tarafından ayarlanır:
+       .json (proje) · .npy (yükseklik haritası) · .smd (Valve modeli) -->
+  <input type="file" id="fileInput" accept=".json,.npy,.smd,.bin,.raw,.grid,.map,.dat,.glb,.gltf,.obj" multiple hidden />
+
+  <!-- Bildirim konteyneri -->
+  <div class="toasts" id="toasts"></div>
+
+  <!-- Modal katmanı -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+  <noscript><p style="padding:24px" data-i18n="app.noscript">Bu editör JavaScript gerektirir.</p></noscript>
+</body>
+</html>

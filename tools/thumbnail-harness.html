@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<!--
+  tools/thumbnail-harness.html
+  ============================================================================
+  Thumbnail üretimi için MINIMAL render sayfası. `tools/generate-thumbs.mjs`
+  tarafından Puppeteer ile açılır; normalde elle kullanılmaz.
+
+  Neden ayrı bir sayfa?
+  ---------------------
+  Editörün `index.html`i büyük, panelleri olan, gölge/ışık/sis ayarlı tam bir
+  uygulamadır. Thumbnail için gereksinimler farklıdır:
+    - sahne YALNIZCA tek model içermeli (izolasyon),
+    - ışıklandırma SABİT ve ölçülebilir olmalı ki 400 thumbnail birbirine
+      benzeyerek çıksın,
+    - arka plan ŞEFFAF olmalı ki hem koyu hem açık panelde okunsun,
+    - her kare temizlenmeli (bellek sızıntısı olmasın).
+
+  Bu sayfa yalnızca `window.THUMB.render(url, opts)` sunar ve PNG verisini
+  geri döndürür. three.js taban adresi `importmap` içinde
+  `generate-thumbs.mjs --three` parametresinden gelir.
+  ============================================================================
+-->
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Thumbnail Harness</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+  #stage { display: block; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "__THREE_BASE__/build/three.module.js",
+    "three/addons/": "__THREE_BASE__/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+const SIZE = 128;
+
+const canvas = document.getElementById('stage');
+canvas.width = SIZE;
+canvas.height = SIZE;
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: true,                  // seffaf arka plan -> panel rengi gecer
+  preserveDrawingBuffer: true,  // toDataURL() icin ZORUNLU
+  powerPreference: 'high-performance',
+});
+renderer.setPixelRatio(1);
+renderer.setSize(SIZE, SIZE, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = null;
+
+const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 2000);
+
+/* --- Işıklandırma: sabit "katalog fotoğrafı" düzeni ---------------------
+   Model başına değişen ışık, 400 thumbnail'ın karşılaştırılabilir olmasını
+   bozardı. Buradaki düzen bilinçli olarak sabittir.                       */
+const ana = new THREE.DirectionalLight(0xffffff, 2.4);
+ana.position.set(3, 5, 4);
+scene.add(ana);
+
+const dolgu = new THREE.DirectionalLight(0xdfe8ff, 1.1);
+dolgu.position.set(-4, 2, -3);
+scene.add(dolgu);
+
+const arka = new THREE.DirectionalLight(0xffe9c9, 0.8);
+arka.position.set(-1, 3, -5);
+scene.add(arka);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+scene.add(new THREE.HemisphereLight(0xdce8ff, 0x3a3630, 0.7));
+
+/* --- Yukleyiciler ------------------------------------------------------ */
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
+
+const ktx2 = new KTX2Loader()
+  .setTranscoderPath('__BASIS_PATH__')
+  .detectSupport(renderer);
+loader.setKTX2Loader(ktx2);
+
+/* ==========================================================================
+   IZOLASYON — her modelden sonra TAM temizlik
+   --------------------------------------------------------------------------
+   1) Bellek: 400 model tek sayfada islenir; KTX2 dokularinin cozumu o kadar
+      hizlidir ki dispose edilmezse Chrome birkac yuz modelde cokler.
+   2) Renk: eski dokular GPU'da birikir, sonraki modellerin rengi bozulur.
+   3) Kaynak: `map`/`normalMap`/`emissiveMap`… paylasilan doku nesneleri
+      asla serbest kalmaz. Her malzeme yuvasini gezmek sart.
+   ========================================================================== */
+let yukluSahne = null;
+
+function temizle() {
+  if (!yukluSahne) return;
+  const dokular = new Set();
+  const materyaller = new Set();
+
+  yukluSahne.traverse((n) => {
+    if (!n.isMesh) return;
+    n.geometry?.dispose?.();
+    const liste = Array.isArray(n.material) ? n.material : (n.material ? [n.material] : []);
+    for (const m of liste) {
+      if (!m) continue;
+      materyaller.add(m);
+      for (const anahtar of Object.keys(m)) {
+        const d = m[anahtar];
+        if (d && d.isTexture) dokular.add(d);
+      }
+    }
+  });
+
+  for (const d of dokular) d.dispose?.();
+  for (const m of materyaller) m.dispose?.();
+
+  scene.remove(yukluSahne);
+  yukluSahne.clear?.();
+  yukluSahne = null;
+}
+
+/* ==========================================================================
+   KAMERA
+   --------------------------------------------------------------------------
+   Modeller 0.15–7 birim araliginda degisken. Kamera sinir kutusuna gore
+   otomatik sigdirilir; boylece elmas da sutun da ayni kadraj payini alir.
+   ========================================================================== */
+function kamerayiKur(box, doluluk, azimut, egim) {
+  const merkez = new THREE.Vector3();
+  const boyut = new THREE.Vector3();
+  box.getCenter(merkez);
+  box.getSize(boyut);
+
+  // En buyuk eksen referans: model uzun/kisa olsa da kadraj dolu kalir
+  const en = Math.max(boyut.x, boyut.y, boyut.z) || 1;
+
+  const fov = camera.fov * Math.PI / 180;
+  const mesafe = (en / (2 * doluluk)) / Math.tan(fov / 2);
+
+  const a = azimut * Math.PI / 180;
+  const e = egim * Math.PI / 180;
+  camera.position.set(
+    merkez.x + mesafe * Math.cos(e) * Math.sin(a),
+    merkez.y + mesafe * Math.sin(e),
+    merkez.z + mesafe * Math.cos(e) * Math.cos(a),
+  );
+  camera.lookAt(merkez);
+
+  camera.near = Math.max(mesafe / 1000, 0.001);
+  camera.far = mesafe * 20;
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+}
+
+/* ==========================================================================
+   RENDER
+   ========================================================================== */
+
+/**
+ * Bir modeli yukleyip PNG uretir.
+ *
+ * @param {string} url
+ * @param {Object} [opts]
+ * @param {number}  [opts.doluluk=0.82]   kadraj dolulugu
+ * @param {number}  [opts.azimut=35]      yatay aci (derece) — 3/4 gorunum
+ * @param {number}  [opts.egim=22]        dikey aci (derece)
+ * @param {boolean} [opts.tersNormal=false] normal haritasini ters cevir
+ * @returns {Promise<{ok:boolean, png?:string, hata?:string, bilgi?:Object}>}
+ */
+async function render(url, opts) {
+  const o = opts || {};
+  temizle();
+
+  try {
+    const kok = /\.obj(\?|$)/i.test(url)
+      ? new OBJLoader().parse(await (await fetch(url)).text())
+      : (await loader.loadAsync(url)).scene;
+
+    if (!kok) throw new Error('sahne (scene) bulunamadi');
+    yukluSahne = kok;
+    scene.add(kok);
+    kok.updateMatrixWorld(true);
+
+    /* --- model sayimi -------------------------------------------------- */
+    let meshSayisi = 0, ucgen = 0;
+    const dokular = new Set();
+    kok.traverse((n) => {
+      if (!n.isMesh) return;
+      meshSayisi++;
+      const g = n.geometry;
+      if (g) {
+        if (!g.boundingBox) g.computeBoundingBox();
+        ucgen += Math.floor((g.index ? g.index.count : (g.attributes?.position?.count || 0)) / 3);
+      }
+      const m = Array.isArray(n.material) ? n.material[0] : n.material;
+      if (m) {
+        for (const k of Object.keys(m)) {
+          const d = m[k];
+          if (d && d.isTexture) dokular.add(d);
+        }
+      }
+    });
+
+    // Animasyon/iskelet dosyalarinda mesh yoktur; bunlar icerik degil
+    if (meshSayisi === 0) {
+      return { ok: false, hata: 'mesh yok (yalnizca animasyon/iskelet verisi)', bilgi: { mesh: 0 } };
+    }
+
+    /* --- tabani Y=0'a otur -------------------------------------------- */
+    const ic = new THREE.Box3().setFromObject(kok);
+    if (!ic.isEmpty()) {
+      kok.position.x -= (ic.min.x + ic.max.x) / 2;
+      kok.position.z -= (ic.min.z + ic.max.z) / 2;
+      kok.position.y -= ic.min.y;
+    }
+    kok.updateMatrixWorld(true);
+
+    /* --- normal haritasi yonu ----------------------------------------
+       Bazi isleyicilerde normalMap ters cozulur; bu "ters isik" gibi
+       gorunur. `--ters-normal` ile cevrilebilir.                         */
+    if (o.tersNormal === true) {
+      kok.traverse((n) => {
+        if (!n.isMesh) return;
+        const liste = Array.isArray(n.material) ? n.material : [n.material];
+        for (const m of liste) if (m && m.normalScale) m.normalScale.multiplyScalar(-1);
+      });
+    }
+
+    /* --- render -------------------------------------------------------- */
+    const kutu = new THREE.Box3().setFromObject(kok);
+    kamerayiKur(kutu, o.doluluk ?? 0.82, o.azimut ?? 35, o.egim ?? 22);
+    renderer.render(scene, camera);
+
+    return {
+      ok: true,
+      png: canvas.toDataURL('image/png'),
+      bilgi: {
+        mesh: meshSayisi,
+        ucgen: ucgen,
+        doku: dokular.size,
+        olcu: kutu.getSize(new THREE.Vector3()).toArray().map((v) => +v.toFixed(3)),
+      },
+    };
+  } catch (err) {
+    return { ok: false, hata: (err && err.message) || String(err) };
+  } finally {
+    temizle();
+  }
+}
+
+/* --- Puppeteer'in cagirdigi yuzey --------------------------------------- */
+window.THUMB = {
+  hazir: true,
+  size: SIZE,
+  render: render,
+  temizle: temizle,
+  threeSurumu: THREE.REVISION,
+  ktx2Hazir: () => !!ktx2,
+};
+window.__THUMB_READY__ = true;
+</script>
+</body>
+</html>
