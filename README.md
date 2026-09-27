@@ -1,150 +1,162 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-# Three.js 3B Harita Editörü (Map Editor / Level Studio)
+# Three.js 3D Map Editor (Level Studio)
 
-Web tabanlı oyunlar için **Three.js** ile yazılmış, **Vanilla JavaScript / ES6
-modülleri** ile yapılandırılmış modern bir 3B harita editörü.
+A modern 3D level editor for web games, written with **Three.js** and structured
+as **Vanilla JavaScript / ES6 modules**.
 
-* 2048 / 1024 / 512 birimlik **dinamik harita boyutu**
-* Sol panelde **Asset Paneli** (tıkla veya sürükle-bırak ile ekleme)
-* Sağ panelde **Özellik Paneli (Inspector)**: konum / rotasyon / ölçek + oyun alanları
-* **TransformControls** ile taşıma, döndürme, ölçekleme (çoklu seçim pivotu destekli)
-* **JSON dışa/içe aktarma**, tarayıcıya otomatik kayıt
-* **Geri al / İleri al** (undo-redo), klavye kısayolları, sahne ağacı
-* **Önizleme (play) modu**: NPC'ler waypoint'ler arasında devriye yapar
-* **2048/1024/512 ölçekli grid**, prosedürel zemin dokusu, sınır çerçevesi
+* **Dynamic map size** of 2048 / 1024 / 512 units
+* **Asset Panel** on the left (add by click or drag-and-drop)
+* **Inspector** on the right: position / rotation / scale + gameplay fields
+* **TransformControls** for move, rotate and scale (multi-selection pivot supported)
+* **JSON import/export**, automatic browser storage
+* **Undo / redo**, keyboard shortcuts, outliner
+* **Preview (play) mode**: NPCs patrol between waypoints
+* **Grid at 2048/1024/512 scale**, procedural ground texture, border frame
+
+## 📸 Screenshots
+
+A few views of the editor UI, asset management and example maps:
+
+### 🖥️ Main editor view
+![Main editor view](docs/screenshots/editor.png)
+
+### 📦 Asset management
+![Asset panel](docs/screenshots/assets.png)
+
+### 🗺️ Map and level design
+![Map view](docs/screenshots/map.png)
+
+### ❓ Help and reference menu
+![Help menu](docs/screenshots/help.png)
 
 ---
 
-## 1. Çalıştırma
+## 1. Running it
 
-ES6 modülleri `file://` üzerinden yüklenemediği için bir HTTP sunucusu gerekir.
+ES6 modules cannot be loaded over `file://`, so an HTTP server is required.
 
 ```bash
-# Seçenek A (önerilen) - önbelleksiz geliştirme sunucusu, port 5174
+# Option A (recommended) - no-cache dev server, port 5174
 python dev_server.py
 
-# Seçenek B - Node (npx ile, kurulum gerektirmez)
+# Option B - Node (via npx, nothing to install)
 npx serve . -l 5173
 
-# Seçenek C - Python (standart)
+# Option C - Python (standard library)
 python -m http.server 5173
 
-# Seçenek D - VS Code
-# "Live Server" eklentisi ile index.html dosyasını açın
+# Option D - VS Code
+# Open index.html with the "Live Server" extension
 ```
 
-Ardından tarayıcıda açın: <http://localhost:5174>
+Then open <http://localhost:5174> in your browser.
 
-> **Neden `dev_server.py`?** Tarayıcılar ES6 modüllerini agresif biçimde
-> önbelleğe alır; kaynak kodu değiştirdikten sonra eski dosya sunulabiliyor.
-> `dev_server.py` her yanıta `Cache-Control: no-store` ekler, böylece her
-> yenilemede güncel kod yüklenir.
+> **Why `dev_server.py`?** Browsers cache ES6 modules aggressively, so a stale
+> file may still be served after you edit the source. `dev_server.py` adds
+> `Cache-Control: no-store` to every response, so each reload loads current code.
 >
-> Sunucu **çok iş parçacıklı** ve bağlantı kuyruğu geniştir
-> (`request_queue_size = 256`). Bunlar süs değil, zorunlu: sayfa açılışında
-> tarayıcı paralel bağlantılar açıyor ve Asset Panel tek seferde ~355
-> thumbnail isteği gönderiyor. Python'un varsayılanı tek iş parçacıklı sunucu
-> ve 5 bağlantılık kuyruk bu yük altında `ERR_CONNECTION_REFUSED` üretiyor —
-> uygulamanın bir kısmı hiç yüklenmeden açılıyor.
+> The server is **multi-threaded** with a large connection backlog
+> (`request_queue_size = 256`). Neither is decoration: on page load the browser
+> opens parallel connections and the Asset Panel fires ~355 thumbnail requests
+> at once. Python's default single-threaded server with a 5-connection backlog
+> produces `ERR_CONNECTION_REFUSED` under this load — and part of the
+> application simply never loads.
 
-> `three` ve `three/addons` CDN'den (unpkg) yüklenir; `node_modules` gerekmez.
-> Çevrimdışı çalışmak için `index.html` içindeki importmap'i yerel kopyalara
-> yönlendirin.
+> `three` and `three/addons` are loaded from a CDN (unpkg); `node_modules` is not
+> required. For offline use, repoint the importmap in `index.html` at local copies.
 
 ---
 
-## 2. Dosya yapısı
+## 2. File structure
 
 ```
 threejs-map/
-├─ index.html                 # Layout (topbar / sol panel / viewport / sağ panel)
-├─ dev_server.py              # Önbelleksiz geliştirme sunucusu
+├─ index.html                 # Layout (topbar / left panel / viewport / right panel)
+├─ dev_server.py              # No-cache development server
 ├─ package.json
 ├─ css/
-│  └─ style.css               # Tasarım değişkenleri + tüm arayüz stilleri
-├─ testdata/                  # Regresyon testi verileri (.npy / .smd örnekleri)
+│  └─ style.css               # Design tokens + all interface styles
+├─ testdata/                  # Regression test data (.npy / .smd samples)
 └─ js/
-   ├─ main.js                 # Giriş noktası, dil hazırlığı, WebGL kontrolü
+   ├─ main.js                 # Entry point, language setup, WebGL check
    ├─ scene/
-   │  ├─ Viewport.js          # Renderer, kamera, OrbitControls, ışık, sky, sis, FPS
-   │  ├─ GridSystem.js        # Dinamik zemin + GridHelper + sınır + eksen
-   │  ├─ SelectionManager.js  # Raycast, hover, seçim kutuları
-   │  └─ TransformTool.js     # TransformControls sarmalayıcı (çoklu seçim pivotu)
+   │  ├─ Viewport.js          # Renderer, camera, OrbitControls, light, sky, fog, FPS
+   │  ├─ GridSystem.js        # Dynamic ground + GridHelper + border + axes
+   │  ├─ SelectionManager.js  # Raycast, hover, selection boxes
+   │  └─ TransformTool.js     # TransformControls wrapper (multi-selection pivot)
    ├─ core/
-   │  ├─ EventBus.js          # Pub-sub altyapısı
-   │  ├─ Store.js             # Tek doğru kaynak: harita + nesne kayıtları + seçim
-   │  ├─ ObjectRegistry.js    # id -> Object3D eşlemesi (O(1) raycast çözümü)
-   │  └─ I18nManager.js       # Aktif dil, t(key), DOM tarama, localStorage
+   │  ├─ EventBus.js          # Pub-sub infrastructure
+   │  ├─ Store.js             # Single source of truth: map + object records + selection
+   │  ├─ ObjectRegistry.js    # id -> Object3D mapping (O(1) raycast resolution)
+   │  └─ I18nManager.js       # Active language, t(key), DOM sweep, localStorage
    ├─ i18n/
-   │  ├─ tr.js                # Türkçe sözlük (KAYNAK + geri düşülecek dil)
-   │  ├─ en.js                # İngilizce sözlük
-   │  ├─ index.js             # Dil kaydı, tarayıcı dili önerisi
-   │  └─ format.js            # Dil duyarlı sayı/yüzde biçimleme
+   │  ├─ tr.js                # Turkish dictionary (SOURCE + fallback language)
+   │  ├─ en.js                # English dictionary
+   │  ├─ index.js             # Language registry, browser-language detection
+   │  └─ format.js            # Locale-aware number / percentage formatting
    ├─ assets/
-   │  ├─ catalog.js           # Asset metadata (ad, ikon, props şeması, footprint)
-   │  └─ AssetFactory.js      # Asset kodlarından Object3D ağaçları üretir
+   │  ├─ catalog.js           # Asset metadata (name, icon, props schema, footprint)
+   │  └─ AssetFactory.js      # Builds Object3D trees from asset codes
    ├─ editor/
-   │  ├─ Editor.js            # Orkestratör: tüm modülleri bağlar
-   │  ├─ History.js           # Snapshot tabanlı undo/redo
-   │  ├─ Topbar.js            # Üst çubuk
-   │  ├─ AssetPanel.js        # Sol üst: asset ızgarası + arama
-   │  ├─ Outliner.js          # Sol alt: sahne ağacı
-   │  ├─ Inspector.js         # Sağ: özellik paneli (scrub'lu sayı alanları)
-   │  └─ StatusBar.js         # Alt: durum çubuğu + istatistikler
+   │  ├─ Editor.js            # Orchestrator: wires every module together
+   │  ├─ History.js           # Snapshot-based undo/redo
+   │  ├─ Topbar.js            # Top bar
+   │  ├─ AssetPanel.js        # Top left: asset grid + search
+   │  ├─ Outliner.js          # Bottom left: scene tree
+   │  ├─ Inspector.js         # Right: properties panel (scrubbable number fields)
+   │  └─ StatusBar.js         # Bottom: status bar + statistics
    ├─ io/
-   │  ├─ ProjectIO.js         # JSON dışa/İçe aktarma, doğrulama, localStorage
-   │  ├─ NPYParser.js         # .npy binary heightmap parser (saf JS, three.js bağımsız)
-   │  ├─ SMDParser.js         # Valve .smd ASCII model parser → BufferGeometry
-   │  ├─ BinaryGridParser.js  # [uint32 N][N×N float32] ikili ızgara (SEZGİSEL)
-   │  ├─ TerrainSystem.js     # Heightmap → arazi mesh (vertex displacement)
-   │  ├─ ExternalAssets.js    # Store DIŞINDA ağır ikili veri deposu
-   │  └─ ImportRouter.js      # İçerik denetimli parser yönlendirme
+   │  ├─ ProjectIO.js         # JSON import/export, validation, localStorage
+   │  ├─ NPYParser.js         # .npy binary heightmap parser (pure JS, no three.js)
+   │  ├─ SMDParser.js         # Valve .smd ASCII model parser -> BufferGeometry
+   │  ├─ BinaryGridParser.js  # [uint32 N][N×N float32] binary grid (HEURISTIC)
+   │  ├─ TerrainSystem.js     # Heightmap -> terrain mesh (vertex displacement)
+   │  ├─ ExternalAssets.js    # Heavy binary store, OUTSIDE the Store
+   │  └─ ImportRouter.js      # Content-sniffed parser routing
    ├─ game/
-   │  └─ NPCSystem.js         # Önizleme modunda basit devriye simülasyonu
+   │  └─ NPCSystem.js         # Simple patrol simulation in preview mode
    ├─ utils/
-   │  ├─ dom.js               # el(), ikonlar, toast, modal, sürükle-bırak
-   │  └─ math.js              # clamp, snap, format, dönüşüm yardımcıları
-   ├─ tools/                 # Node betikleri (derleme zamanı işleri)
-   │  ├─ scan-assets.mjs      # Dış projeden tarar → kopyalar → manifest ürerir
-   │  ├─ fetch-transcoder.mjs # KTX2 transcoder'ı indirir (three.js ile eşleş)
-   │  ├─ generate-thumbs.mjs  # Her model için 128×128 PNG thumbnail ürerir
-   │  ├─ thumbnail-harness.html # Puppeteer'ın render sayfası
-   │  ├─ test-terrain.js      # Tarayıcıda çalışan regresyon testi (98 test)
+   │  ├─ dom.js               # el(), icons, toast, modal, drag-and-drop
+   │  └─ math.js              # clamp, snap, format, transform helpers
+   ├─ tools/                 # Node scripts (build-time work)
+   │  ├─ scan-assets.mjs      # Scans an external project -> copies -> writes manifest
+   │  ├─ fetch-transcoder.mjs # Downloads the KTX2 transcoder (matched to three.js)
+   │  ├─ generate-thumbs.mjs  # Renders a 128×128 PNG thumbnail per model
+   │  ├─ thumbnail-harness.html # Puppeteer's render page
+   │  ├─ test-terrain.js      # In-browser regression suite (98 tests)
    │  │                       #   await import('/tools/test-terrain.js')
-   │  │                       #   → runTerrainSuite()
-   │  ├─ test-i18n.js         # Tarayıcıda çalışan i18n testi (65 test)
+   │  │                       #   -> runTerrainSuite()
+   │  ├─ test-i18n.js         # In-browser i18n suite (65 tests)
    │  │                       #   await import('/tools/test-i18n.js')
-   │  │                       #   → runI18nSuite()
-   │  ├─ test-modal-fit.js    # Node/Puppeteer: modal'ın 7 ekran boyutunda
-   │  │                       #   sığma + kaydırma + yapışkan başlık testi
-   │  ├─ test-all.mjs         # Yukarıdaki iki tarayıcı paketini soğuk sayfada
-   │  │                       #   sırayla çalıştırır (tek komut, CI uyumlu)
-   │  ├─ viewport-harness.html  # test-modal-fit.js'in iframe yerleştiricisi
-   │  ├─ shot-modal.js        # Modalın ekran görüntüsünü PNG'ye alır
-   │  └─ shot-i18n.js         # TR/EN ekran görüntüsü (düğmeye tıklayarak)
-   │                           #   (geliştirici aracı; test değil)
-   └─ public/                # Statik varlıklar (dev sunucusu bunları sunar)
-      ├─ assets/imported/     # Taranmış modeller + imported-assets.json
-      ├─ assets/thumbs/       # generate-thumbs çıktısı (PNG)
+   │  │                       #   -> runI18nSuite()
+   │  ├─ test-modal-fit.js    # Node/Puppeteer: modal fit + scroll + sticky headers
+   │  │                       #   across 7 viewport sizes
+   │  ├─ test-all.mjs         # Runs the two browser suites on a cold page,
+   │  │                       #   one command, CI friendly
+   │  ├─ viewport-harness.html  # iframe host for test-modal-fit.js
+   │  ├─ shot-modal.js        # Captures a PNG of the modal
+   │  └─ shot-i18n.js         # TR/EN screenshots (by clicking the buttons)
+   │                           #   (developer tool; not a test)
+   └─ public/                # Static assets (served by the dev server)
+      ├─ assets/imported/     # Scanned models + imported-assets.json
+      ├─ assets/thumbs/       # generate-thumbs output (PNG)
       └─ vendor/basis/        # KTX2 transcoder (.wasm + .js)
 ```
 
 ---
 
-## 3. Mimari: Store ⇄ Sahne
+## 3. Architecture: Store ⇄ Scene
 
-Editörün en önemli kararı şudur: **kalıcı veri sahne nesnesinde değil,
-`Store`'da tutulur.** `Object3D` yalnızca bu verinin bir görüntüsüdür.
+The editor's most important decision: **persistent data lives in the `Store`,
+not in the scene object.** `Object3D` is only a view of that data.
 
 ```
-kullanıcı değişikliği
+user change
         │
         ▼
-Store.patchRecord(id, patch)  ──►  OBJECT_UPDATE olayı
+Store.patchRecord(id, patch)  ──►  OBJECT_UPDATE event
         │                                    │
-        │                                    ├─► Inspector  (değerleri tazele)
-        │                                    ├─► Outliner   (satırı tazele)
+        │                                    ├─► Inspector  (refresh values)
+        │                                    ├─► Outliner   (refresh the row)
         │                                    └─► Editor._syncRecordToObject()
         │                                             │
         │                                             ▼
@@ -153,81 +165,81 @@ Store.patchRecord(id, patch)  ──►  OBJECT_UPDATE olayı
 Export JSON  /  History snapshot
 ```
 
-Bunun kazancı:
+What this buys:
 
-| Konu | Sonuç |
+| Concern | Result |
 |---|---|
-| JSON dışa aktarma | Sahne taranmaz, doğrudan `store.objects` yazılır |
-| Undo/redo | JSON metin anlık görüntüsü; sahne yeniden kurulur |
-| Çoklu seçim | Her kayıt bağımsız; toplu güncelleme tek yerde |
-| Inspector | Sahne nesnesine dokunmadan veri yazar |
+| JSON export | The scene is never traversed; `store.objects` is written directly |
+| Undo/redo | A JSON text snapshot; the scene is rebuilt |
+| Multi-selection | Every record is independent; bulk updates live in one place |
+| Inspector | Writes data without touching the scene object |
 
-> **Gizmo istisnası:** `TransformControls` nesneyi doğrudan taşıdığı için
-> `objectChange` olayında kayıt *sahne nesnesinden okunarak* güncellenir
-> (`source: 'gizmo'`); bu durumda geri yazma yapılmaz (sonsuz döngü olurdu).
+> **Gizmo exception:** because `TransformControls` moves the object directly, the
+> record is updated in the `objectChange` event by *reading from the scene object*
+> (`source: 'gizmo'`); in that case nothing is written back (that would loop forever).
 
 ---
 
-## 4. Harita boyutu
+## 4. Map size
 
-`Store.setMap({ size })` çağrıldığında otomatik olarak:
+Calling `Store.setMap({ size })` automatically:
 
-1. `GridSystem.setSize()` → zemin düzlemi, `GridHelper` (2048/1024/512) ve sınır yeniden kurulur
-2. `Viewport.frameMap()` → kamera sınırı, gölge kamerası ve sis mesafeleri ayarlanır
-3. `TransformTool.setSnap()` → yapışma adımı yeni hücre boyutuna güncellenir
-4. Segment düğmeleri ve istatistikler tazelenir
+1. `GridSystem.setSize()` → rebuilds the ground plane, `GridHelper` (2048/1024/512) and the border
+2. `Viewport.frameMap()` → adjusts the camera border, shadow camera and fog distances
+3. `TransformTool.setSnap()` → updates the snap step to the new cell size
+4. Refreshes the size buttons and the statistics
 
-Boyut değiştirilirken mevcut yerleşim için üç seçenek sunulur:
+When the size changes, three options are offered for the existing layout:
 
-| Seçenek | Davranış |
+| Option | Behaviour |
 |---|---|
-| **Yerleşimi koru** | Nesneler aynı koordinatlarda kalır |
-| **Ölçekle** | `yeni/eski` oranında konum ve ölçek çarpılır |
-| **Temizle** | Sahne boşaltılır |
+| **Keep layout** | Objects stay at the same coordinates |
+| **Scale** | Position and scale are multiplied by `new/old` |
+| **Clear** | The scene is emptied |
 
 ---
 
-## 5. Klavye Kısayolları
+## 5. Keyboard shortcuts
 
-| Tuş | İşlev |
+| Key | Action |
 |---|---|
-| `G` / `W` | Taşı modu |
-| `R` / `E` | Döndürme modu |
-| `T` / `S` | Ölçekleme modu |
-| `Q` | World ↔ Local uzay |
-| `X` | Izgaraya yapışma |
-| `A` / `B` | Eksenler / sınır çerçevesi |
-| `H` | Panelleri gizle-göster |
-| `F` | Seçime odaklan |
-| `Home` | Tüm haritayı çerçeçe al |
-| `7` | Üstten görünüm |
-| `Space` | Oyun önizlemesi |
-| `Del` | Seçili sil |
-| `Ctrl+D` | Çoğalt |
-| `Ctrl+A` | Tümünü seç |
-| `Ctrl+Z` / `Ctrl+Y` | Geri al / ileri al |
-| `Ctrl+S` | Tarayıcıya kaydet |
-| `Ctrl+E` | JSON dışa aktar |
-| `Ctrl+O` | JSON içe aktar |
-| `Esc` | Seçimi kaldır |
-| `/` | Asset araması |
-| `?` | Yardım penceresi |
+| `G` / `W` | Move mode |
+| `R` / `E` | Rotate mode |
+| `T` / `S` | Scale mode |
+| `Q` | Toggle World ↔ Local space |
+| `X` | Snap to grid |
+| `A` / `B` | Axes / border frame |
+| `H` | Toggle panels |
+| `F` | Focus selection |
+| `Home` | Frame the whole map |
+| `7` | Top-down view |
+| `Space` | Game preview |
+| `Del` | Delete selection |
+| `Ctrl+D` | Duplicate |
+| `Ctrl+A` | Select all |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+S` | Save to browser storage |
+| `Ctrl+E` | Export JSON |
+| `Ctrl+O` | Import JSON |
+| `Esc` | Clear selection |
+| `/` | Search assets |
+| `?` | Help window |
 
-**Fare:** Sol tık seç · `Shift`+Sol tık çoklu seçim · Sağ tık yörünge ·
-Orta tık kaydırma · Tekerlek yakınlaştırma.
-Inspector'da bir sayı alanının **etiketine (X/Y/Z) tutup sürükle**erek değeri
-kaydırabilirsiniz (`Shift` = ×10, `Ctrl` = ×0.1).
+**Mouse:** left click select · `Shift`+left click multi-select · right drag orbit ·
+middle drag pan · wheel zoom.
+In the Inspector you can **grab a number field's label (X/Y/Z) and drag** to
+scrub the value (`Shift` = ×10, `Ctrl` = ×0.1).
 
 ---
 
-## 6. JSON Dosya Formatı
+## 6. JSON file format
 
 ```json
 {
   "format": "threejs-map-editor",
   "version": 1,
   "createdAt": "2026-09-27T10:15:00.000Z",
-  "app": { "name": "Three.js Map Editor", "units": "birim (unit)" },
+  "app": { "name": "Three.js Map Editor", "units": "unit" },
   "map": {
     "size": 2048,
     "cellSize": 8,
@@ -243,7 +255,7 @@ kaydırabilirsiniz (`Shift` = ×10, `Ctrl` = ×0.1).
   "objects": [
     {
       "id": "obj_m1x2y3z",
-      "name": "Ağaç",
+      "name": "Tree",
       "assetId": "tree",
       "category": "nature",
       "position": [12.5, 0, -40],
@@ -254,7 +266,7 @@ kaydırabilirsiniz (`Shift` = ×10, `Ctrl` = ×0.1).
       "color": "#4a9d5a",
       "castShadow": true,
       "receiveShadow": true,
-      "tag": "orman",
+      "tag": "forest",
       "props": {}
     },
     {
@@ -285,25 +297,25 @@ kaydırabilirsiniz (`Shift` = ×10, `Ctrl` = ×0.1).
 }
 ```
 
-**Sözleşme kuralları**
+**Contract rules**
 
-* `rotation` **derece** cinsindendir (oyun motorunda okunabilirlik için);
-  içe aktarımda `0..360` aralığına normalize edilir.
-* `assetId` bilinmezse nesne sessizce atlanır ve uyarı verilir.
-* `position` / `rotation` / `scale` dizileri 3 elemanlı olmalıdır.
-* Eksik alanlar (görünürlük, renk, gölük, props) içe aktarımda tamamlanır.
-* `map.size` yalnızca 2048 / 1024 / 512 kabul eder; diğer değerler en yakına
-  yuvarlanır ve uyarı üretilir.
+* `rotation` is in **degrees** (readable in a game engine); on import it is
+  normalised to `0..360`.
+* An unknown `assetId` silently skips the object and raises a warning.
+* `position` / `rotation` / `scale` arrays must have 3 elements.
+* Missing fields (visibility, colour, shadow flags, props) are filled in on import.
+* `map.size` only accepts 2048 / 1024 / 512; other values are rounded to the
+  nearest valid one and a warning is produced.
 
-### Oyun motoruna aktarma (örnek)
+### Handing off to a game engine (example)
 
 ```js
-// Tarayıcıda açtığınız JSON dosyasını doğrudan kullanabilirsiniz.
-const map = await fetch('/maps/harita_2048.json').then(r => r.json());
+// You can consume the exported JSON directly in the browser.
+const map = await fetch('/maps/map_2048.json').then(r => r.json());
 
-// three.js yüklüyse doğrudan sahneye kurabilirsiniz:
+// Or place it in your scene directly, with three.js loaded:
 for (const o of map.objects) {
-  const mesh = buildMeshFor(o.assetId);          // kendi asset üreticiniz
+  const mesh = buildMeshFor(o.assetId);          // your own asset factory
   mesh.position.fromArray(o.position);
   mesh.rotation.set(...o.rotation.map(THREE.MathUtils.degToRad), 'YXZ');
   mesh.scale.fromArray(o.scale);
@@ -314,246 +326,246 @@ for (const o of map.objects) {
 
 ---
 
-## 6-bis. Dosya İçe Aktarma: `.npy`, `.smd` ve ikili ızgaralar
+## 6-bis. File import: `.npy`, `.smd` and binary grids
 
-`Import` butonu (veya viewport'a dosya sürükle-bırak) dosyayı **önce içeriğine
-göre** denetler, sonra doğru parser'a yollar.
+The `Import` button (or dropping a file onto the viewport) inspects the file
+**by its content first**, then routes it to the correct parser.
 
-| Uzantı | İçerik denetimi | Parser | Sonuç |
+| Extension | Content check | Parser | Result |
 |---|---|---|---|
-| `.json` | — | `ProjectIO` | Sahne değiştirilir (proje yüklenir) |
-| `.npy` | — | `NPYParser` + `TerrainSystem` | **Arazi** (terrain) nesnesi |
-| `.smd` | `ascii-smd`? | `SMDParser` | **İçe Aktarılan Mesh** |
-| `.smd` | `binary-grid`? | `BinaryGridParser` | **Arazi** (sezgisel) + uyarı |
-| `.bin .raw .grid .map .dat` | her zaman | yukarıdakilerden biri | içeriğe göre karar verilir |
+| `.json` | — | `ProjectIO` | Scene is replaced (project loaded) |
+| `.npy` | — | `NPYParser` + `TerrainSystem` | **Terrain** object |
+| `.smd` | `ascii-smd`? | `SMDParser` | **Imported Mesh** |
+| `.smd` | `binary-grid`? | `BinaryGridParser` | **Terrain** (heuristic) + warning |
+| `.bin .raw .grid .map .dat` | always | one of the above | decided by content |
 
-Aynı anda birden fazla dosya bırakılabilir. `.json` dosyaları **en son**
-işlenir; aksi halde proje yüklemesi kendinden önce eklenen nesneleri silerdi.
-Desteklenmeyen uzantılarda (`.npz`, `.obj`, `.fbx`, `.vmdl` …) kullanıcıya
-hangi biçimlerin kabul edildiğini söyleyen net bir hata gösterilir.
+Multiple files can be dropped at once. `.json` files are processed **last**;
+otherwise loading a project would delete the objects added before it. For
+unsupported extensions (`.npz`, `.obj`, `.fbx`, `.vmdl` …) the user gets a
+clear error listing the accepted formats.
 
-> ### ⚠️ Neden içerik denetimi var?
+> ### ⚠️ Why content sniffing?
 >
-> Gerçek dünyada `.smd` adı verilmiş dosyaların bir kısmı **Valve ASCII SMD
-> değildir**. Üçüncü parti araçların ürettiği ikili harita dökümleri de bu
-> uzantıyı kullanır. Bu dosyaları doğrudan metin parser'ına sokmak
-> *"Satır 1: 'version' bekleniyordu, '<binary>' bulundu"* gibi anlamsız bir
-> hata üretir ve kullanıcıyı saatlerce yanlış yönde aratır.
+> In the wild, some files named `.smd` are **not Valve ASCII SMD**. Third-party
+> tools also use this extension for binary map dumps. Feeding those to a text
+> parser produces a meaningless error like *"Line 1: expected 'version', found
+> '<binary>'"* and sends the user hunting for hours.
 >
-> Bu yüzden `.smd` ve belirsiz uzantılar önce ilk baytlarına bakar:
-> ilk satır `version N` ise ASCII SMD, dosya `[uint32 N][N×N float32]` ile
-> başlıyorsa ikili ızgara, hiçbiri değilse **ne olduğunu söyleyen** bir hata.
+> So `.smd` and ambiguous extensions are checked by their first bytes: if the
+> first line is `version N` it is ASCII SMD; if the file starts with
+> `[uint32 N][N×N float32]` it is a binary grid; if neither, you get an error
+> that **says what it found**.
 
-### `.npy` — NumPy yükseklik haritası
+### `.npy` — NumPy heightmap
 
-`NPYParser.js` tamamen bağımsızdır (three.js import etmez, Web Worker'da da
-çalışır) ve şunları çözer:
+`NPYParser.js` is completely standalone (imports no three.js, also runs in a Web
+Worker) and handles:
 
-* sihirli dizi (`0x93NUMPY`), sürüm 1/2/3, header uzunluğu (v1: uint16, v2/3: uint32)
-* header'daki Python dict literal — **`eval()` kullanılmaz**, küçük bir
-  özyinelemeli çözümleyici vardır (güvenlik: dosya içeriği dış veridir)
+* the magic array (`0x93NUMPY`), versions 1/2/3, header length (v1: uint16, v2/3: uint32)
+* the Python dict literal in the header — **`eval()` is not used**; a small
+  recursive parser handles it instead (security: file content is untrusted input)
 * `descr` dtype → `bool |b1`, `int8/16/32/64`, `uint8/16/32/64`, `float16/32/64`
-  (float16 için elle IEEE-754 half → float32 dönüşümü)
-* bayt sırası: `<` little, `>` big-endian, `|` sırasız
-* `fortran_order` → matris transpoze edilerek C order'a getirilir
-* çok boyutlu diziler: 1D → 1×N, 3D → kanal seçimi veya kanal ortalaması
-* doğrulama: bozuk imza, kısa/truncated veri, aşırı büyük dizi, NaN/Inf sayımı
+  (manual IEEE-754 half → float32 conversion for float16)
+* byte order: `<` little, `>` big-endian, `|` not applicable
+* `fortran_order` → the matrix is transposed into C order
+* multi-dimensional arrays: 1D → 1×N, 3D → channel selection or channel average
+* validation: bad signature, short/truncated data, oversized arrays, NaN/Inf counting
 
-`TerrainSystem` heightmap'i araziye uygular:
+`TerrainSystem` applies the heightmap to the terrain:
 
 1. `PlaneGeometry(size, size, segments, segments)` → `rotateX(-90°)`
-2. her köşe için heightmap'ten **bilinear örnek** alınır → heightmap
-   çözünürlüğü ile mesh bölüm sayısı birbirinden bağımsızdır (257×257'lik
-   klasik Source heightmap'i 512 bölümlü araziye de sorunsun uyar)
-3. `projectHeight()` ile dünya Y'sine çevrilir (aşağıdaki *Yükseklik Modu*)
-4. normaller yeniden hesaplanır, köşe renkleri yüksekliğe göre boyanır
+2. for each vertex, a **bilinear sample** is taken from the heightmap → the
+   heightmap resolution and the mesh segment count are independent (a classic
+   257×257 Source heightmap fits a 512-segment terrain without a warning)
+3. converted to world Y via `projectHeight()` (see *Height Mode* below)
+4. normals are recomputed, vertex colours are painted by height
 
 ```python
-# numpy ile kaydedilen her şey doğrudan yüklenir
-np.save("harita.npy", heightmap.astype(np.float32))       # (257, 257)
+# anything saved with numpy loads directly
+np.save("map.npy", heightmap.astype(np.float32))       # (257, 257)
 ```
 
-### Yükseklik Modu — mutlak mı, normalize mi?
+### Height Mode — absolute or normalized?
 
-Bu ayar **en önemli** olanıdır ve yanlış seçilirse veri sessizce kaybolur.
+This is the **most important** setting; choosing wrongly loses data silently.
 
-| Mod | Formül | Ne zaman |
+| Mode | Formula | When |
 |---|---|---|
-| **Mutlak** (varsayılan) | `y = (v − heightBase) × heightScale` | Ham `.npy` değerleri **dünya birimi** ise |
-| **Normalize** | `y = (v−min)/(max−min) × heightScale` | Ham veri keyfi aralıklıysa (0–255 LUT vb.) |
+| **Absolute** (default) | `y = (v − heightBase) × heightScale` | Raw `.npy` values are **world units** |
+| **Normalized** | `y = (v−min)/(max−min) × heightScale` | Raw data uses an arbitrary range (0–255 LUT etc.) |
 
-> Knight Online / Source tarzı haritaların heightmap'leri genelde
-> **mutlak dünya yüksekliğidir** — negatif vadiler içerir. Bu tür veriler
-> `normalize` ile yüklenirse `min…max` aralığı `0…heightScale`'e sıkışır ve
-> hem negatif vadiler hem de mutlak yükseklikler kaybolur. Bu yüzden varsayılan
-> **mutlak**, `heightScale = 1`, `heightBase = 0`'dır: heightmap birebir dünya
-> yüksekliği olur.
+> Knight Online / Source style maps usually have heightmaps that are **absolute
+> world heights** — they contain negative valleys. Loading such data with
+> `normalize` squeezes the `min…max` range into `0…heightScale`, so both the
+> negative valleys and the absolute heights are lost. That is why the default is
+> **absolute** with `heightScale = 1` and `heightBase = 0`: the heightmap becomes
+> the world height verbatim.
 
-Örnek — gerçek bir harita `−34.74 … 51.12` aralığında:
+Example — a real map spanning `−34.74 … 51.12`:
 
-| Ayar | Sonuç |
+| Setting | Result |
 |---|---|
-| Mutlak, ölçek 1, taban 0 | `−34.63 … 50.94` ✅ vadiler ve yükseklikler birebir |
-| Normalize, ölçek 40 | `0 … 40` ⚠️ bilgi sıkıştırıldı |
-| Mutlak, ölçek 2 | `−69.3 … 101.9` ✅ istenen aralık |
+| Absolute, scale 1, base 0 | `−34.63 … 50.94` ✅ valleys and heights preserved |
+| Normalize, scale 40 | `0 … 40` ⚠️ information compressed away |
+| Absolute, scale 2 | `−69.3 … 101.9` ✅ the requested range |
 
-**Referans düzlem (`heightBase`)** en alçak noktayı 0'a taşımak için
-kullanılır: `heightBase = −34.74` ile arazi `0 … 85.9` aralığına gelir.
+The **reference plane (`heightBase`)** moves the lowest point to 0: with
+`heightBase = −34.74` the terrain spans `0 … 85.9`.
 
-### Su ve kıyı boyaması
+### Water and shore tinting
 
-`Su Seviyesi` alanı boş bırakılırsa **otomatik** mod çalışır: ham veride
-negatif değer varsa `0` (deniz seviyesi), yoksa en alçak nokta. Böylece
-gerçek dünya heightmap'lerinde vadiler doğal olarak su görünür, ama tamamen
-pozitif veride (0–255 LUT) hiçbir alan gereksiz yere su boyanmaz.
+If the `Water Level` field is left empty, **automatic** mode applies: `0` (sea
+level) if the raw data contains negative values, otherwise the lowest point. Real
+world heightmaps therefore show valleys as water naturally, while entirely
+positive data (a 0–255 LUT) never gets water painted on it needlessly.
 
-* `y ≤ su` → **Su Rengi**
-* `y ≤ su + Kıyı Bandı` → **Kıyı / Kum Rengi** (bandı dünya birimidir; ince tutulmalıdır)
-* üstü → Alçak → Orta → Yüksek → Zirve rampası
+* `y ≤ water` → **Water Colour**
+* `y ≤ water + Shore Band` → **Shore / Sand Colour** (the band is in world units; keep it thin)
+* above → Low → Mid → High → Peak ramp
 
-### Performans: hangi değişiklik ne kadar pahalı?
+### Performance: how expensive is each change?
 
-`TerrainSystem` son uygulanan props'un anlık görüntüsünü tutar ve **gerçek
-farkı** hesaplar (`Store.patchRecord` props nesnesinin tamamını yollar, bu
-yüzden olaydan "hangi alan değişti" bilgisi çıkarılamaz). 257 bölüm (66k köşe)
-için:
+`TerrainSystem` keeps a snapshot of the last applied props and computes the
+**real difference** (`Store.patchRecord` sends the entire props object, so
+"which field changed" cannot be recovered from the event). For 257 segments
+(66k vertices):
 
-| Değişiklik | Yol | Maliyet |
+| Change | Path | Cost |
 |---|---|---|
-| `heightScale` | `rescaleGeometry` — `y *= yeni/eski` | çok hızlı |
-| `heightMode`, `heightBase` | `reprojectGeometry` — `aHeight`'dan Y yeniden hesap | hızlı |
-| Renkler, su seviyesi, kıyı bandı | `colorizeTerrain` — yalnızca `color` | hızlı |
-| Tel kafes, düz gölge | malzeme bayrağı | anlık |
-| `segments`, `terrainSize`, `flipRows` | `rebuild` — yeniden örnekleme | pahalı |
+| `heightScale` | `rescaleGeometry` — `y *= new/old` | very fast |
+| `heightMode`, `heightBase` | `reprojectGeometry` — recompute Y from `aHeight` | fast |
+| Colours, water level, shore band | `colorizeTerrain` — only `color` | fast |
+| Wireframe, flat shading | material flag | instant |
+| `segments`, `terrainSize`, `flipRows` | `rebuild` — resample | expensive |
 
-Tüm istekler bir karede birleştirilir (`rAF`), böylece etiket kaydırma
-sırasında kare başına yalnızca bir iş yapılır.
+All requests are coalesced into one frame (`rAF`), so scrubbing a label performs
+only one unit of work per frame.
 
-**Ölçek yeniden kurulumda korunur:** `displaceGeometry` yükseklik
-projeksiyonunu `opts.props.heightScale` olarak okur. `opts.heightScale`
-okumak her zaman `undefined` verir ve ölçeği sessizce 1'e düşürürdü — hata
-yalnızca `heightScale ≠ 1` iken görünür. `tools/test-terrain.js` bunu açıkça
-test eder.
+**Scale is preserved on rebuild:** `displaceGeometry` reads the height projection
+from `opts.props.heightScale`. Reading `opts.heightScale` always yields
+`undefined` and would silently drop the scale to 1 — a bug visible *only* when
+`heightScale ≠ 1`. `tools/test-terrain.js` tests this explicitly.
 
-### `.smd` — Valve Source modeli
+### `.smd` — Valve Source model
 
-`SMDParser.js` blok sırasıyla satır satır okur:
+`SMDParser.js` reads the blocks line by line, in this order:
 
 ```
 version 1
-<triangleSayisi>
-<3 × (vertexIndex  px py pz  nx ny nz  u v)>   ← 27 sayı (kanonik Valve biçimi)
-<vertexSayisi>  <px py pz>
-<normalSayisi>  <nx ny nz>
-<texcoordSayisi><u v>
-<skinWeightSayisi> / <boneWeightSayisi>       ← opsiyonel
-<grupSayisi>  {  <id> <ad>  }
+<triangleCount>
+<3 × (vertexIndex  px py pz  nx ny nz  u v)>   ← 27 numbers (canonical Valve format)
+<vertexCount>  <px py pz>
+<normalCount>  <nx ny nz>
+<texcoordCount><u v>
+<skinWeightCount> / <boneWeightCount>         ← optional
+<groupCount>  {  <id> <name>  }
 ```
 
-> **Köşe indeksli (27 sayı) ve indekssiz (24 sayı) biçimlerin ikisi de
-> desteklenir.** İkincisinde indeksler `triangleIndex*3 + corner` ile türetilir
-> ve yalnızca `numVertices === numTriangles × 3` ise tutarlıdır (uyarı verilir).
+> **Both the vertex-indexed (27 numbers) and the non-indexed (24 numbers) forms
+> are supported.** In the latter, indices are derived as `triangleIndex*3 + corner`
+> and the file is only considered consistent when
+> `numVertices === numTriangles × 3` (a warning is raised otherwise).
 
-* `//` yorumları, boş satırlar, CRLF, UTF-8 BOM, `version` satırının yokluğu
-* opsiyonel skin/bone blokları **ileriye dönük doğrulama** ile tanınır
-  (sayı 0 ise ve ardından `{` geliyorsa bu grup sayısıdır)
-* grup bloğu eksikse hata yerine uyarı üretilir
-* `mode: 'auto'` → `numVertices > 0` ise **indexed** (paylaşımlı köşe) geometri,
-  aksi halde `flat` (üçgen başına 3 köşe, normaller/UV'ler kesin doğru)
-* `convert: 'source'` → Source (Z-yukarı, sol el) → three.js (Y-yukarı, sağ el):
-  `x' = -y,  y' = z,  z' = x` (determinant +1 → üçgen sarımı korunur)
-* `skinIndex` / `skinWeight` nitelikleri kemik ağırlıkları varsa üretilir
-* kaynak metin `ExternalAssetCache`'te saklanır → JSON'a gömülüp geri
-  yüklendiğinde model **kayıpsız yeniden üretilir**
+* `//` comments, blank lines, CRLF, UTF-8 BOM, a missing `version` line
+* optional skin/bone blocks are identified with **lookahead validation**
+  (if the number is 0 and a `{` follows, it is the group count)
+* a missing group block produces a warning rather than an error
+* `mode: 'auto'` → **indexed** (shared vertices) geometry when `numVertices > 0`,
+  otherwise `flat` (3 vertices per triangle, normals/UVs unambiguously correct)
+* `convert: 'source'` → Source (Z-up, left-handed) → three.js (Y-up, right-handed):
+  `x' = -y,  y' = z,  z' = x` (determinant +1 → triangle winding preserved)
+* `skinIndex` / `skinWeight` attributes are produced when bone weights exist
+* the source text is stored in `ExternalAssetCache` → when embedded in JSON and
+  reloaded, the model is **reproduced losslessly**
 
-### İkili ızgara (`.smd` / `.bin` / `.map` / …) — **sezgisel**
+### Binary grid (`.smd` / `.bin` / `.map` / …) — **heuristic**
 
-`BinaryGridParser.js` şu düzeni okur:
+`BinaryGridParser.js` reads this layout:
 
 ```
-[uint32 N]  [N × N float32]  …(kalan baytlar yok sayılır)
+[uint32 N]  [N × N float32]  …(remaining bytes are ignored)
 ```
 
-Bu **tam bir biçim uygulaması değildir** ve bunu saklamaz. Yalnızca dosyanın
-başındaki ızgarayı okur, doğrular (`N` makul mü, değerler sonlu ve makul mu,
-tamamı aynı değil mi) ve kullanıcıya **ne okunduğunu ve neyin atlandığını**
-açıkça söyler. Emin olunamayan durumda hata verir; asla uydurma geometri
-üretmez.
+This is **not a complete format implementation** and does not pretend to be. It
+only reads the grid at the start of the file, validates it (is `N` plausible, are
+the values finite and plausible, are they all identical?) and tells the user
+**explicitly what was read and what was skipped**. When it cannot be sure it
+raises an error; it never invents geometry.
 
-> Gerçek bir örnek: Knight Online harita araçlarından gelen 3 MB'lık bir
-> `.smd` dosyasının ilk 257×257 float bloğu, aynı haritanın `.npy` heightmap'i
-> ile **birebir aynı min/max değerlerine** sahipti (`−34.739 … 51.115`) ve
-> editöre arazi olarak alındı. Dosyanın kalan 2.7 MB'ı bu okuyucu tarafından
-> işlenmedi — konsol çıktısı bunu açıkça belirtir.
+> A real example: the first 257×257 float block of a 3 MB `.smd` file coming
+> from Knight Online map tools had **exactly the same min/max values** as that
+> same map's `.npy` heightmap (`−34.739 … 51.115`), and was loaded as terrain.
+> The remaining 2.7 MB of the file was not processed by this reader — the console
+> output says so plainly.
 
-### Ağır veri: Store dışı önbellek
+### Heavy data: the out-of-Store cache
 
-İçe aktarılan içerik JSON'a sığmaz (2048² float32 ≈ 16 MB, base64 ≈ 22 MB).
-Bu yüzden ağır veri `ExternalAssetCache`'te, `id → veri` olarak tutulur; Store
-kaydında yalnızca **metadata + 64×64 önizleme** bulunur.
+Imported content does not fit in JSON (2048² float32 ≈ 16 MB, base64 ≈ 22 MB).
+Heavy data therefore lives in `ExternalAssetCache` as `id → data`; the Store
+record holds only **metadata + a 64×64 preview**.
 
-| Durum | JSON içeriği | Round-trip |
+| Mode | JSON content | Round-trip |
 |---|---|---|
-| `includeExternalData: false` (varsayılan) | arazi: metadata + 64×64 önizleme · mesh: **kaynak metin** | meshler kayıpsız, arazi düşük çözünürlüklü (`degraded`) |
-| `includeExternalData: true` | arazi: base64 float32 (kayıpsız) · mesh: kaynak metin | tam kayıpsız |
+| `includeExternalData: false` (default) | terrain: metadata + 64×64 preview · mesh: **source text** | meshes lossless, terrain low resolution (`degraded`) |
+| `includeExternalData: true` | terrain: base64 float32 (lossless) · mesh: source text | fully lossless |
 
-`Export JSON` düğmesi içerik varsa hangi modun kullanılacağını sorar.
-Otomatik kayıt (localStorage) her zaman hafif moddadır.
+The `Export JSON` button asks which mode to use when there is content to
+export. Automatic save (localStorage) always uses the lightweight mode.
 
-**Geri alma (undo) arazi verisini korur:** bir nesne silindiğinde cache kaydı
-anında silinmez; `ExternalAssetCache.gc()` geri alma penceresi dolduktan sonra
-temizler (`missCount > 64`). Aksi halde geri alınan arazi düz bir düzleme dönerdi.
+**Undo preserves terrain data:** when an object is deleted its cache entry is not
+removed immediately; `ExternalAssetCache.gc()` cleans it once the undo window has
+passed (`missCount > 64`). Otherwise undoing would return a flat plane.
 
-### Test verisi ve regresyon testi
+### Test data and regression tests
 
-`testdata/` klasörü gerçek NumPy ve SMD örneklerini içerir:
+`testdata/` contains real NumPy and SMD samples:
 
 ```
 .npy : height_257_f32/f64/f16, height_int16, height_u8, rgb_3d, fortran,
-       bigendian, mask_bool, nan_inf, scalar, empty, complex (reddedilir)
-.smd : plane, cube, baked (indekssiz), flipped, boned, crlf_bom, empty,
-       bad_group, truncated, nan, bad_index (hepsi reddedilmeli)
-user/ : gerçek dünya dosyaları (Moradon.npy, moradon.smd, …) — opsiyonel
+       bigendian, mask_bool, nan_inf, scalar, empty, complex (must be rejected)
+.smd : plane, cube, baked (non-indexed), flipped, boned, crlf_bom, empty,
+       bad_group, truncated, nan, bad_index (all must be rejected)
+user/ : real-world files (Moradon.npy, moradon.smd, …) — optional
 ```
 
-**Tarayıcıda çalışan test paketi** — konsoldan:
+**The suite runs in the browser** — from the console:
 
 ```js
 const T = await import('/tools/test-terrain.js');
-await T.runTerrainSuite();          // konsola yazar, 98 test
+await T.runTerrainSuite();          // writes to the console, 98 tests
 const r = await T.runTerrainSuite({ verbose: false });
-console.log(r.pass.length, r.fail); // ayrıntıyı programatik al
+console.log(r.pass.length, r.fail); // get the details programmatically
 ```
 
-Kapsam: yükseklik modları, yeniden kurumada ölçek korunumu, undo/redo,
-`sampleWorld` ↔ mesh tutarlılığı, su/kıyı, dosya yönlendirme (ASCII SMD,
-bozuk SMD, `.npy`, ikili ızgara, yanıltıcı uzantı, gürültü dosyası), JSON
-gidiş-dönüş, tüm asset türlerinde Inspector alan bağları ve thumbnail
-davranışı (lazy-load, 404 → fallback, `draggable=false`).
+Coverage: height modes, scale preservation on rebuild, undo/redo,
+`sampleWorld` ↔ mesh consistency, water/shore, file routing (ASCII SMD, broken
+SMD, `.npy`, binary grid, misleading extension, noise file), JSON round-trip,
+Inspector field bindings for every asset type, and thumbnail behaviour
+(lazy-load, 404 → fallback, `draggable=false`).
 
-> Paket **idempotenttir**: `sifirla()` tüm modül durumunu temizler, `waitFor()`
-> da sabit gecikme yerine koşulu bekler. Arazi prop güncellemeleri rAF'te
-> biriktirildiği (`_flushTerrainSync`) için sabit `wait()` yetersiz kalırdı.
-> Testi yeni açılmış bir sekmede hemen çalıştırırsanız, sayfa bootstrap'ı
-> (otomatik kayıt geri yükleme) testin kurulumuyla yarışabilir —
-> `e._firstLoad` çözülene kadar bekleyin.
+> The suite is **idempotent**: `sifirla()` clears all module state and
+> `waitFor()` waits on a condition instead of a fixed delay. A fixed `wait()` is
+> not enough because terrain prop updates are coalesced in `rAF`
+> (`_flushTerrainSync`). If you run the suite immediately in a freshly opened
+> tab, the page bootstrap (automatic save restore) can race with the test's own
+> setup — wait until `e._firstLoad` has resolved.
 
-**Node/Puppeteer testi — modal sığma** (tarayıcı açıkça gerekmez):
+**Node/Puppeteer test — modal fit** (no browser tab required):
 
 ```bash
-python dev_server.py 5174      # ayrı bir terminalde açık olmalı
+python dev_server.py 5174      # must be running in a separate terminal
 node tools/test-modal-fit.js
 ```
 
-7 ekran boyutunda (1600×1000 → 1440×380) ölçer: modal 85vh'yi aşıyor mu,
-başlık ve altbilgi kaydırma sırasında sabit kalıyor mu, gövde tek başına
-kayıyor mu, bölüm başlıkları yapışkan mı, sütun sayısı dar ekranda düşüyor
-mu, `Escape` ile kapanma korunmuş mu. **98 ölçüm, hepsi geçer.**
-Pencere boyutu headless Chrome'da değiştirilemediği için editör
-`tools/viewport-harness.html` içindeki iframe'e konur — iframe'in kendi
-viewport'u test edilen boyuttur.
+It measures 7 viewport sizes (1600×1000 → 1440×380): does the modal exceed 85vh,
+do the header and footer stay pinned while scrolling, does the body scroll on
+its own, are the section headers sticky, does the column count drop on narrow
+screens, is `Escape` closing still intact. **98 measurements, all passing.**
+Because the window size cannot be changed in headless Chrome, the editor is
+placed in an iframe in `tools/viewport-harness.html` — the iframe's own viewport
+is the size under test.
 
-Üretmek için:
+To regenerate the test data:
 
 ```python
 import numpy as np
@@ -564,351 +576,358 @@ np.save("testdata/height_257_f32.npy", h)
 
 ---
 
-## 6-ter. DIŞ PROJEDEN 3B VARLIK KÜTÜPHANESİ
+## 6-ter. EXTERNAL 3D ASSET LIBRARY
 
-Başka bir projedeki `.glb` / `.gltf` / `.obj` modellerini editöre
-aktarır. Süreç iki aşamalıdır:
+Imports `.glb` / `.gltf` / `.obj` models from another project into the editor.
+The process has two stages:
 
 ```
-┌─ DERLEME ZAMANI (Node) ─────────────────┐   ┌─ ÇALIŞMA ZAMANI (Tarayıcı) ─┐
-│ tools/scan-assets.mjs                   │   │ js/io/ImportedAssetLibrary.js │
-│  → tara, kopyala, manifest üret          │──▶│  → manifest oku              │
-│ public/assets/imported/imported-assets. │   │  → tembel yükle (GLTFLoader) │
-│ json + <kategori>/<ad>.glb              │   │  → LRU önbellek              │
-└──────────────────────────────────────────┘   │  → AssetPanel kategorisi     │
-                                               └─────────────────────────────┘
+┌─ BUILD TIME (Node) ─────────────────────┐   ┌─ RUNTIME (Browser) ───────────────────────┐
+│ tools/scan-assets.mjs                   │   │ js/io/ImportedAssetLibrary.js             │
+│  → scan, copy, build manifest           │──▶│  → read manifest                         │
+│ public/assets/imported/imported-assets. │   │  → lazy load (GLTFLoader)                 │
+│ json + <category>/<name>.glb            │   │  → LRU cache                              │
+└──────────────────────────────────────────┘   │  → AssetPanel category                   │
+                                                └─────────────────────────────────────────┘
 ```
 
-> ### ⚠️ Neden iki aşamalı?
+> ### ⚠️ Why two stages?
 >
-> Editör tarayıcıda çalışan statik bir uygulamadır; dosya sistemine erişemez.
-> "C:\...\public\models" altındaki 1390 modeli tarayıcı listeleyemez. Bu
-> yüzden tarama + kopyalama + manifest üretimi **derleme zamanı** bir iştir;
-> editör yalnızca üretilen `imported-assets.json` dosyasını okur.
+> The editor is a static application running in the browser; it cannot access
+> the file system. It cannot enumerate the 1390 models under
+> "C:\...\public\models". Scanning + copying + manifest generation is therefore
+> a **build-time** task; the editor only reads the generated
+> `imported-assets.json`.
 
-### Kurulum
+### Setup
 
 ```bash
-# 1) modelleri tara, kopyala ve manifest üret
+# 1) scan the models, copy them and build the manifest
 node tools/scan-assets.mjs
 
-# 2) KTX2 dokuları için transcoder'ı indir (three.js sürümüyle aynı)
+# 2) download the transcoder for KTX2 textures (matched to the three.js version)
 node tools/fetch-transcoder.mjs
 
-# 3) editörü başlat
+# 3) start the editor
 python dev_server.py 5174      # → http://localhost:5174
 ```
 
-Asset panelinde `World of Claudecraft` kategorileri otomatik belirir.
+The `World of Claudecraft` categories then appear in the asset panel
+automatically.
 
-### Tarayıcıda oynatıcı
+### Script options
 
-| Seçenek | Anlamı |
+| Option | Meaning |
 |---|---|
-| `--src <yol>` | Kaynak kök dizin (varsayılan: `C:\worldofclaudecraft\world-of-claudecraft-main`) |
-| `--out <yol>` | Çıktı klasörü (varsayılan: `public/assets/imported`) |
-| `--limit <n>` | En fazla n model. Küçükten büyüğe sıralanır, böylece **en çok model, en az yer** kaplar |
-| `--min-kb <n>` / `--max-mb <n>` | Boyut filtreleri (varsayılan: `< 8 MB`) |
-| `--include "a,b"` | Yalnızca bu kaynak klasörlerini tara |
-| `--exclude "a,b"` | Bu klasörleri atla (varsayılan: `test, node_modules, dist, …`) |
-| `--category-depth n` | Kategoriyi kaç klasör derinlikten al (1 = doğrudan alt klasör) |
-| `--no-gltf` / `--no-obj` | Belirli biçimleri kapat |
-| `--clean` | Çıktı klasörünü önce boşalt |
-| `--dry-run` | **Kopyalamadan** yalnızca rapor üret |
-| `-v` | Her dosya için satır yaz |
+| `--src <path>` | Source root (default: `C:\worldofclaudecraft\world-of-claudecraft-main`) |
+| `--out <path>` | Output folder (default: `public/assets/imported`) |
+| `--limit <n>` | At most n models. Sorted small to large, so **the most models fit in the least space** |
+| `--min-kb <n>` / `--max-mb <n>` | Size filters (default: `< 8 MB`) |
+| `--include "a,b"` | Only scan these source folders |
+| `--exclude "a,b"` | Skip these folders (default: `test, node_modules, dist, …`) |
+| `--category-depth n` | How many folder levels deep the category name comes from (1 = direct children) |
+| `--no-gltf` / `--no-obj` | Disable specific formats |
+| `--clean` | Empty the output folder first |
+| `--dry-run` | Produce a report **without copying** |
+| `-v` | Write a line per file |
 
-Örnek:
+Examples:
 
 ```bash
-# yalnızca mağara ve sahne eşyalarını al, en fazla 200 model
+# only dungeons and props, at most 200 models
 node tools/scan-assets.mjs --include "dungeon,props" --limit 200
 
-# önce ne olacağını gör
+# see what would happen first
 node tools/scan-assets.mjs --include dungeon --limit 200 --dry-run
 ```
 
-### Sıkıştırma: Meshopt ve KTX2
+### Compression: Meshopt and KTX2
 
-Taranan kitaplığın **1249 modeli `EXT_meshopt_compression`**, **1191 modeli
-`KHR_texture_basisu`** kullanıyor ve bunları `extensionsRequired` içinde
-bildiriyor. Bu iki eklenti olmadan modellerin çoğu **yüklenemez**:
+**1249 models in the scanned library use `EXT_meshopt_compression`** and
+**1191 use `KHR_texture_basisu`**, both declared in `extensionsRequired`. Without
+these two extensions most models **cannot be loaded**:
 
-| Eklenti | Ne yapar | Çözücü |
+| Extension | What it does | Decoder |
 |---|---|---|
-| `EXT_meshopt_compression` | Vertex buffer'larını sıkıştırır | `MeshoptDecoder` |
-| `KHR_texture_basisu` | Dokuları Basis/KTX2 olarak sıkıştırır | `KTX2Loader` + transcoder |
+| `EXT_meshopt_compression` | Compresses vertex buffers | `MeshoptDecoder` |
+| `KHR_texture_basisu` | Compresses textures as Basis/KTX2 | `KTX2Loader` + transcoder |
 
-`fetch-transcoder.mjs`, transcoder'ı **three.js sürümüyle aynı** olacak şekilde
-indirir ve `.wasm` dosyasının gerçekten WebAssembly olduğunu doğrular. CDN'den
-çalışma zamanında çekmek yerine projeye indirilmesi bilinçlidir: sürüm
-tutarsızlığı sessizce bozuk doku üretir ve çevrimdışı çalışmaz.
+`fetch-transcoder.mjs` downloads the transcoder **matched to the exact three.js
+version** and verifies that the `.wasm` really is WebAssembly. Vendoring it
+rather than pulling it from a CDN at runtime is deliberate: a version mismatch
+silently produces corrupt textures and does not work offline.
 
-> Kaynak projenin kendi yükleyicisi de birebir aynı iki çağrıyı yapıyor
-> (`src/render/assets/loader.ts`), yani bu kurulum onunla aynı davranışı verir.
+> The source project's own loader makes exactly the same two calls
+> (`src/render/assets/loader.ts`), so this setup behaves identically to theirs.
 
-### Bellek: 1390 model, 24 tanesi bellekte
+### Memory: 1390 models, 24 in memory
 
-Modeller **tembel** yüklenir — sahnede olan indirilir. Yüklenenler LRU
-önbellekte tutulur ve **geometri/malzeme örnekler arası paylaşılır**:
+Models are loaded **lazily** — only what is in the scene is fetched. Loaded
+models are held in an LRU cache and **geometry/material instances are shared
+across clones**:
 
 ```
-200 adet ağaç  →  1 dosya indirilir, 1 geometri, 1 malzeme, 200 düğüm
+200 trees  →  1 file downloaded, 1 geometry, 1 material, 200 nodes
 ```
 
-`clone()` materyalleri de klonladığı için `instantiate()` bunu açıkça geri
-alar (`object.getObjectByName`). Bu bilinçli bir seçimdir: her kopyaya ayrı
-doku yüklemek 200 × doku belleği demektir.
+Because `clone()` also clones materials, `instantiate()` explicitly undoes that
+(`object.getObjectByName`). This is a deliberate trade-off: loading a separate
+texture per copy would mean 200 × the texture memory.
 
-### Ölçek: modeller bu haritada küçük
+### Scale: models look small on this map
 
-Kitaplık modelleri **yard/metre ölçeğinde** yazılmıştır (ölçülen medyan
-~1.2 birim: bir kalkan 0.88, bir sütun 1.5×4×1.5). Bu haritada ise 1 birim
-bir ızgara hücresidir (varsayılan 8), dolayısıyla modeller küçük görünür.
+The library models were authored at **yard/metre scale** (measured median ~1.2
+units: a shield 0.88, a column 1.5×4×1.5). On this map 1 unit is one grid cell
+(default 8), so the models appear small.
 
-Bu yüzden Inspector'da **Hedef Yükseklik** alanı vardır:
+That is why the Inspector has a **Target Height** field:
 
-| Ayar | Sonuç |
+| Setting | Result |
 |---|---|
-| `0` (varsayılan) | 1:1 — hiçbir şey değişmez |
-| `3` | model 3 birim yüksekliğe ölçeklenir, `scale` kayda yazılır |
+| `0` (default) | 1:1 — nothing changes |
+| `3` | the model is scaled to 3 units tall, `scale` is written to the record |
 
-Sessizce ölçeklemek **seçilmemiştir**: ölçeğe duyarlı yerleşim yapan projelerde
-(düşman çarpışma kutuları, kapı boşlukları) "modelim neden 3 kat büyük?"
-sorusunu sormadan ölçek değiştirmek hataya yol açar.
+Scaling silently was **deliberately not chosen**: in projects that place
+scale-sensitive content (enemy hitboxes, door gaps), changing the scale without
+being asked produces a "why is my model 3× too big?" bug.
 
-> **`KHR_mesh_quantization` tuzağı:** bu eklenti kullanıldığında accessor
-> `min/max` değerleri **kuantize uzaydadır**, dünya birimi değildir — tipik
-> olarak `65534` gibi anlamsız sayılar çıkar. Tarayıcı manifest'te
-> `sinirGuvenilir: false` işaretler ve editör gerçek sınırı modeli
-> **yüklendikten sonra** ölçer.
+> **The `KHR_mesh_quantization` trap:** when that extension is used, accessor
+> `min/max` values are **in quantized space**, not world units — you typically
+> get nonsense numbers like `65534`. The browser marks `sinirGuvenilir: false`
+> in the manifest, and the editor measures the real bounds **after** the model
+> is loaded.
 
-### Hata ve yol yönetimi
+### Error and path handling
 
-| Durum | Davranış |
+| Situation | Behaviour |
 |---|---|
-| **Ad çakışması** | Çıktı klasöründe `fence.glb` → `fence_2.glb`. Kaynak proje **değiştirilmez**; orijinal yol manifest'te `kaynak` alanında saklanır |
-| **Bozuk GLB** | Sihirli dizi / sürüm / chunk boyutu doğrulanır; geçersizse `sorunlar.atlanan` listesine gider ve kopyalanmaz |
-| **Eksik dizin** | `✗ Kaynak dizin bulunamadı` + `--src` ipucu, çıkış kodu 1 |
-| **Eksik KTX2 transcoder** | Manifest yine üretilir; yalnızca KTX2 dokulu modeller yüklenemez ve bu **açıkça** bildirilir |
-| **Manifest yok** | Editör **normal çalışır**, kategori boş kalır, konsola tek satır bilgi düşer |
-| **Bırakılan yerel dosya** | Proje JSON'unda `imp:serbest_*` olarak taşınır ama sunucuda karşılığı yoktur. Yeni oturumda çözülemez; kayıt **kaybolmaz**, "yeniden sürükleyin" notuyla durur |
-| **Sayfa yenileme** | `_bootstrap()` kütüphane manifest'i **yüklendikten sonra** çalışır; yoksa kayıtlı modeller çözülemeden hata verirdi |
+| **Name collision** | `fence.glb` → `fence_2.glb` in the output folder. The source project is **not modified**; the original path is kept in the manifest's `kaynak` field |
+| **Broken GLB** | Magic number / version / chunk size are validated; if invalid the file goes to `sorunlar.atlanan` and is not copied |
+| **Missing directory** | `✗ Source directory not found` + a `--src` hint, exit code 1 |
+| **Missing KTX2 transcoder** | The manifest is still produced; only KTX2-textured models fail to load and this is **explicitly** reported |
+| **No manifest** | The editor **works normally**, the category stays empty, one informational line is logged |
+| **Dropped local file** | Carried in the project JSON as `imp:serbest_*` but has no counterpart on the server. It cannot be resolved in a new session; the record is **not lost**, it stays with a "drag it again" note |
+| **Page reload** | `_bootstrap()` runs **after** the library manifest has loaded; otherwise it would fail while trying to resolve saved models |
 
-### Sürükle-bırak ile tekil dosya
+### Single file drag-and-drop
 
-`viewport`'a doğrudan `.glb` / `.gltf` / `.obj` bırakmak da çalışır. Bu dosyalar
-sunucuya kopyalanmaz, yalnızca o oturumda geçerlidir; kitaplıktaki modellerin
-`imported-assets.json` ile kalıcıdır.
+Dropping a `.glb` / `.gltf` / `.obj` straight onto the viewport works too. These
+files are not copied to the server and are only valid for that session; models
+from the library are persisted via `imported-assets.json`.
 
 ```js
 const T = await import('/tools/test-terrain.js');
-await T.runTerrainSuite();   // 98 test: arazi + dış kütüphane + thumbnail
+await T.runTerrainSuite();   // 98 tests: terrain + external library + thumbnails
 ```
 
-**Tüm tarayıcı paketlerini tek komutla çalıştırmak** için:
+**To run every browser suite with a single command:**
 
 ```bash
-python dev_server.py 5174      # ayrı terminalde açık olmalı
-node tools/test-all.mjs        # 163 test: arazi (98) + i18n (65)
+python dev_server.py 5174      # must be running in a separate terminal
+node tools/test-all.mjs        # 163 tests: terrain (98) + i18n (65)
 ```
 
-`test-all.mjs` her paketi **soğuk** bir sayfada (yeni sekme, boş
-localStorage) çalıştırır. Böylece "ilk koşu bozuk" durumu — geçmişte arazi
-testinde görülen, yalnızca taze yüklemede ortaya çıkan kararsızlık — yakalanır.
+`test-all.mjs` runs each suite on a **cold** page (new tab, empty localStorage).
+That is how the "first run is broken" flakiness — previously seen in the terrain
+suite and appearing only on a fresh load — gets caught.
 
 ---
 
-### Thumbnail (görsel önizleme) üretimi
+### Thumbnail (preview) generation
 
-`tools/generate-thumbs.mjs`, manifestteki her modeli **izole bir sahnede**
-yükleyip 128×128 PNG üretir ve yolu manifeste `thumb` alanı olarak yazar.
+`tools/generate-thumbs.mjs` loads every model in the manifest in an **isolated
+scene**, renders a 128×128 PNG and writes the path back into the manifest's
+`thumb` field.
 
 ```bash
-npm install                      # puppeteer (tek geliştirme bağımlılığı)
-node tools/generate-thumbs.mjs   # veya:  npm run thumbs
+npm install                      # puppeteer (the only dev dependency)
+node tools/generate-thumbs.mjs   # or:  npm run thumbs
 ```
 
-**Neden Puppeteer?** Kitaplık `EXT_meshopt_compression` (vertex buffer) ve
-`KHR_texture_basisu` (Basis/KTX2 doku) eklentilerini zorunlu kılıyor. Bu iki
-çözücüyü saf Node'da yazmak (meshopt + basis transcoder) hem çok büyük hem de
-three.js'teki uygulamayla birebir aynı olmaz. Gerçek bir tarayıcı motoru üç
-şeyi bedavaya getirir: GLTFLoader'ın tam sürümü, gerçek WebGL ve transcoder'ın
-WebAssembly'i.
+**Why Puppeteer?** The library mandates the `EXT_meshopt_compression` (vertex
+buffer) and `KHR_texture_basisu` (Basis/KTX2 texture) extensions. Reimplementing
+both decoders in pure Node (meshopt + basis transcoder) would be both enormous
+and not byte-identical to three.js's implementation. A real browser engine gives
+you three things for free: the full GLTFLoader, real WebGL, and the transcoder's
+WebAssembly.
 
-Betik kendi **geçici HTTP sunucusunu** açar (port 0 → çakışma imkânsız) ve
-`file://` kaynaklı CORS/WASM sorunlarını böylece ortadan kaldırır. three.js
-sürümü `index.html` importmap'inden okunur; transcoder ile sürüm eşleşmezse
-dokular sessizce bozulur.
+The script starts its **own temporary HTTP server** (port 0 → collisions are
+impossible), which eliminates `file://` CORS/WASM problems. The three.js version
+is read from the importmap in `index.html`; if it does not match the transcoder,
+textures are silently corrupted.
 
-#### Oynatıcı
+#### Script options
 
-| Seçenek | Anlamı |
+| Option | Meaning |
 |---|---|
-| `--size <n>` | Kare boyutu (varsayılan 128) |
-| `--limit <n>` | En fazla n model |
-| `--include "a,b"` | Yalnızca bu kategoriler |
-| `--par <n>` | Eşzamanlı tarayıcı sayfası (varsayılan çekirdek−1, en fazla 3) |
-| `--azimut <°>` | Kamera yatay açısı (varsayılan 35 — 3/4 görünüm) |
-| `--egim <°>` | Kamera dikey açısı (varsayılan 22) |
-| `--doluluk <0-1>` | Kadraj doluluğu (varsayılan 0.82) |
-| `--ters-normal` | Normal haritası ters çözülüyorsa |
-| `--yeniden` | (varsayılan) güncel thumbnail'ları atla |
-| `--hepsini` | Tümünü yeniden üret |
-| `--size 256` | Retina panel için büyük thumbnail |
-| `-v` | Model bazlı çıktı |
+| `--size <n>` | Frame size (default 128) |
+| `--limit <n>` | At most n models |
+| `--include "a,b"` | Only these categories |
+| `--par <n>` | Concurrent browser pages (default cores−1, max 3) |
+| `--azimut <°>` | Camera azimuth (default 35 — a 3/4 view) |
+| `--egim <°>` | Camera elevation (default 22) |
+| `--doluluk <0-1>` | Frame fill (default 0.82) |
+| `--ters-normal` | When the normal map is inverted |
+| `--yeniden` | (default) skip thumbnails that are already current |
+| `--hepsini` | Regenerate everything |
+| `--size 256` | Larger thumbnails for a retina panel |
+| `-v` | Per-model output |
 
 ```bash
-# hızlı önizleme: tek kategori, büyük görsel
+# quick preview: one category, large image
 node tools/generate-thumbs.mjs --include dungeon --limit 40 --size 256
 
-# kamera açısını değiştirip hepsini yeniden üret
+# change the camera angle and regenerate everything
 node tools/generate-thumbs.mjs --azimut 45 --egim 30 --hepsini
 ```
 
-#### Render kuralları
+#### Render rules
 
-* **Otomatik kadraj** — modeller 0.15–7 birim aralığında değişken. Kamera her
-  modelin sınır kutusuna göre yeniden ayarlanır; elmasla sütun aynı kadraj
-  payını alır.
-* **Sabit ışıklandırma** — 3 noktalı yönlü + dolgu + ortam. Model başına
-  değişen ışık, 400 thumbnail'ın karşılaştırılabilir olmasını bozardı.
-* **Şeffaf arka plan** — PNG arka plansızdır; koyu panelde de açık panelde de
-  okunur.
-* **İzolasyon + dispose** — her modelden sonra geometri, malzeme ve **doku**
-  serbest bırakılır. KTX2 dokularının çözümü o kadar hızlıdır ki temizlik
-  yapılmazsa Chrome birkaç yüz modelde çöker.
+* **Automatic framing** — models vary between 0.15 and 7 units. The camera is
+  re-fitted to each model's bounding box, so a gem and a pillar get the same
+  share of the frame.
+* **Fixed lighting** — three directional lights + fill + ambient. Lighting that
+  varied per model would make the 400 thumbnails incomparable.
+* **Transparent background** — the PNG has no background; it is legible on both
+  the dark and the light panel.
+* **Isolation + dispose** — after every model the geometry, material and
+  **textures** are released. KTX2 texture decoding is so fast that without
+  cleanup Chrome collapses after a few hundred models.
 
-#### Sonuç ve hata yönetimi
+#### Result and error handling
 
 ```
-üretilen   : 353        (355 thumbnail dosyası, 2.9 MB, ort. 8.4 KB)
-atlanan    : 2          (zaten güncel)
-hatalı     : 45         → hepsi "mesh yok (yalnızca animasyon/iskelet)"
+produced   : 353        (355 thumbnail files, 2.9 MB, avg. 8.4 KB)
+skipped    : 2          (already current)
+failed     : 45         → all "no mesh (animation/skeleton data only)"
 ```
 
-Üretilemeyen modeller **tüm işi çöpe atmaz**; manifestte `sorunlar.thumbnail`
-altında listelenir. "Mesh yok" sonucu için `meshVar: false` **geri yazılır** —
-böylece düzenleyici bu dosyaları mesh'li sanmaz, kullanıcı sahneye ekleyip boş
-nesne görmez.
+Models that cannot be produced do **not** throw the whole job away; they are
+listed under `sorunlar.thumbnail` in the manifest. For the "no mesh" result,
+`meshVar: false` is **written back** — so the editor does not mistake these
+files for meshed ones and the user does not add an object that looks empty.
 
-#### Panelde gösterim ve performans
+#### Display in the panel and performance
 
-`AssetPanel._createThumb()` her kart için bir `<img>` yerleştirir:
+`AssetPanel._createThumb()` places one `<img>` per card:
 
-| Öznitelik | Neden |
+| Attribute | Why |
 |---|---|
-| `loading="lazy"` | Görsel yalnızca kadraja **girdiğinde** indirilir. 400 kart olsa bile görünen ~20 tanesi istek yapar. |
-| `decoding="async"` | PNG decode'u ana iş parçacığını bloklamaz |
-| `width` / `height` | Görsel yüklenmeden önce yer ayrılır; yüzlerce kartın yeniden yerleşim (layout thrash) yapmasını engeller |
-| `draggable="false"` | Kartın sürükle-bırak davranışı bozulmaz |
+| `loading="lazy"` | The image is only fetched when it enters the viewport. Even with 400 cards only the ~20 visible ones issue requests. |
+| `decoding="async"` | PNG decoding does not block the main thread |
+| `width` / `height` | Space is reserved before the image loads; prevents hundreds of cards from thrashing layout |
+| `draggable="false"` | The card's drag-and-drop behaviour is not broken |
 
-Ayrıca:
+Additionally:
 
-* **Shimmer iskeleti** — `loading="lazy"` yüzünden henüz indirilmemiş kartlar
-  sabit gri kutuyla değil, hareketli gradyanla "bekliyor" sinyali verir.
-  `prefers-reduced-motion` açıksa animasyon durur.
-* **Fallback** — thumbnail üretilmemiş (bozuk model, mesh'siz dosya) ya da
-  dosya 404 döndürmüşse küp ikonuna düşer. `error` olayı `once` ile bağlanır,
-  bozuk `<img>` DOM'dan kaldırılır.
-* **`content-visibility: auto`** — kart görünür alana girmeden önce içeriği
-  **çizilmez**; `contain-intrinsic-size` kaydırma çubuğunun sıçramasını önler.
+* **Shimmer skeleton** — cards not yet fetched (because of `loading="lazy"`)
+  signal "waiting" with a moving gradient rather than a flat grey box. With
+  `prefers-reduced-motion` enabled the animation stops.
+* **Fallback** — if no thumbnail was produced (broken model, meshless file) or
+  the file returns 404, it falls back to the cube icon. The `error` listener is
+  bound with `once` and the broken `<img>` is removed from the DOM.
+* **`content-visibility: auto`** — a card's contents are **not painted** before
+  it scrolls into view; `contain-intrinsic-size` prevents the scrollbar from
+  jumping.
 
-Ölçülen: 89 kart DOM'da, yalnızca **21** görsel indirildi (kadrajda görünenler),
-sıfır bozuk görsel.
+Measured: 89 cards in the DOM, only **21** images fetched (the ones in view),
+zero broken images.
 
 ---
 
-## 6-quater. ÇOK DİLLİ ARAYÜZ (i18n)
+## 6-quater. MULTI-LANGUAGE INTERFACE (i18n)
 
-Editör Türkçe ve İngilizce arasında geçiş yapar. Dil üst çubuğun sağ
-ucundaki **TR ⇄ EN** düğmesinden değiştirilir, `localStorage`'da saklanır ve
-sayfa yeniden açıldığında geri gelir.
+The editor switches between Turkish and English. The language is changed with the
+**TR ⇄ EN** button at the right end of the top bar, is stored in `localStorage`
+and is restored on the next page load.
 
-### Neden dil `Store`'da değil?
+### Why the language is not in the `Store`
 
-`Store` **haritanın** durumudur ve `ProjectIO` ile JSON'a yazılır. Arayüz
-dili ise bir kullanıcı **tercihidir**, proje verisi değildir: haritayı
-İngilizce okuyan birine "Türkçe görünümünde açıldı" demek yanlış olur.
-Bu yüzden dil ayrı bir kaynakta (`I18nManager`) tutulur ve JSON'a **girmez**.
+`Store` holds the state of the **map** and is written to JSON by `ProjectIO`.
+The interface language is a user **preference**, not project data: telling
+someone reading a map in English that "it opened in the Turkish view" would be
+wrong. The language therefore lives in its own source (`I18nManager`) and does
+**not** enter the JSON.
 
-Harita ayarlarının aksine — ızgara rengi, hücre boyutu, zemin rengi —
-bunlar projenin parçasıdır ve `Store`'da kalır.
+Unlike map settings — grid colour, cell size, ground colour — those are part of
+the project and stay in the `Store`.
 
-### Dosyalar
+### Files
 
 ```
-js/i18n/tr.js               Türkçe sözlük — KAYNAK ve geri düşülecek dil
-js/i18n/en.js               İngilizce sözlük
-js/i18n/index.js            Dil kaydı, tarayıcı dili önerisi
-js/i18n/format.js           n() / pct() — dil duyarlı sayı biçimleme
-js/core/I18nManager.js      Aktif dil, t(key), DOM tarama, localStorage
+js/i18n/tr.js               Turkish dictionary — SOURCE and fallback language
+js/i18n/en.js               English dictionary
+js/i18n/index.js            Language registry, browser-language detection
+js/i18n/format.js           n() / pct() — locale-aware number formatting
+js/core/I18nManager.js      Active language, t(key), DOM sweep, localStorage
 ```
 
-### Çözümleme sırası
+### Resolution order
 
 ```js
 i18n.t('status.objects', { count: 1234 })
 ```
 
-1. aktif dil · `status.objects.one`    (yalnızca `count` verildiyse)
-2. aktif dil · `status.objects.other`
-3. aktif dil · `status.objects`         → çoğul / varsayılan biçim
-4. **geri düşülecek dil** (Türkçe) · aynı üç deneme
-5. anahtarın kendisi + konsol uyarısı
+1. active language · `status.objects.one`    (only when `count` is given)
+2. active language · `status.objects.other`
+3. active language · `status.objects`         → plural / default form
+4. **fallback language** (Turkish) · the same three attempts
+5. the key itself + a console warning
 
-Bulunamayan anahtar **boş dönmez** — anahtarın kendisini döner ve `MISSING`
-olayı yayınlar. Boş string, "arayüz bozuk" ile "çeviri eksik" ayrımını
-imkânsız kılardı; `topbar.btn.export` yazan bir kutu hatayı kendi bildirir.
+A key that is not found **does not return empty** — it returns the key itself and
+emits a `MISSING` event. An empty string makes "the UI is broken" and "the
+translation is missing" indistinguishable; a box reading `topbar.btn.export`
+reports its own problem.
 
-### Çoğul (plural)
+### Plural forms
 
-**Türkçede çoğul eki yoktur** — "1 nesne" ile "5 nesne" aynı yazılır. Bu
-yüzden TR sözlüğünde `.one` **gerekmez** ve yazılmaz. İngilizcede isim
-çoğullandığı için `.one` + düz anahtar (çoğul) kullanılır:
+**Turkish has no plural suffix** — "1 nesne" and "5 nesne" are written
+identically. So the TR dictionary does not need `.one` and does not define it.
+English pluralises the noun, so it uses `.one` plus the plain key (plural):
 
 ```js
-// tr.js  — tek biçim yeter
+// tr.js  — one form is enough
 'status.objects': 'Nesne: {count}',
 
-// en.js  — tekil + çoğul
+// en.js  — singular + plural
 'status.objects.one':   'Object: {count}',
 'status.objects':       'Objects: {count}',
 ```
 
-`tools/test-i18n.js` şu kuralı denetler: İngilizce bir anahtarda `{count}`
-hemen ardından `s` ile biten bir isim geliyorsa `.one` **vardır** — aksi
-hâlde "1 objects" gibi bir gramer hatası üretilirdi.
+`tools/test-i18n.js` enforces this rule: if an English key has a noun ending in
+`s` immediately after `{count}`, `.one` **must** exist — otherwise it would
+produce a grammar error like "1 objects".
 
-### Yeni metin eklerken
+### When adding new text
 
-1. Anahtarı **anlam** taşısın, metni değil: `btn.save` = "Kaydet". Bir
-   çeviri güncellenirse kod değişmez.
-2. Sözlüğe **iki dile** de ekleyin. Eksik düz anahtar, o dilde başka bir
-   dile düşer ve kullanıcı karışık dil görür — test bunu yakalar.
-3. Sayı içeriyorsa `.one` gerekip gerekmediğini düşünün.
-4. `data-i18n` yalnızca **çocuk düğümü olmayan** öğelere konur. Aksi hâlde
-   `textContent` yazımı ikonları/etiketleri silerdi; `I18nManager` bunu
-   bilerek atlar ve konsola uyarı yazar.
+1. Let the key carry the **meaning**, not the wording: `btn.save` = "Save". If a
+   translation is updated, the code does not change.
+2. Add it to **both** dictionaries. A missing plain key falls back to the other
+   language and the user sees a mixed-language UI — the test catches this.
+3. If it contains a number, think about whether `.one` is needed.
+4. `data-i18n` only goes on elements with **no child nodes**. Otherwise writing
+   `textContent` would delete the icons/labels inside; `I18nManager`
+   deliberately skips those and logs a warning.
 
-### DOM yenileme: iki katman
+### Refreshing the DOM: two layers
 
-Dil değişince arayüzü tazelemek iki farklı yol gerektirir:
+Changing the language needs two different mechanisms:
 
-| Katman | Kapsam | Nasıl |
+| Layer | Scope | How |
 |---|---|---|
-| **Tarama** | Statik metin ve öznitelikler: `index.html`'deki `data-i18n` / `data-i18n-attr`, `el()` ile üretilen düğümler | `I18nManager.apply()` tüm belgeyi tarar |
-| **Yeniden çizim** | Hesaplanmış metin: "Nesne: 12", "Kategori: biyom", "3 kilitli atlandı" | Bileşen `i18n.register('inspector', …)` ile geri çağrı kaydeder |
+| **Sweep** | Static text and attributes: `data-i18n` / `data-i18n-attr` in `index.html`, nodes produced by `el()` | `I18nManager.apply()` walks the whole document |
+| **Re-render** | Computed text: "Objects: 12", "Category: biome", "3 locked skipped" | The component registers a callback via `i18n.register('inspector', …)` |
 
-Neden sadece tarama yetmez? "Nesne: 12" metninin `12` değeri DOM'da değil,
-`Store`'dadır; tarama onu yeniden üretemez. Neden sadece yeniden çizim
-yeter? `title` / `placeholder` gibi öznitelikler ve düğme etiketleri
-bileşen yeniden çizilmeden değişmeli; üstelik yeniden çizim, kullanıcının
-odakladığı bir `<input>` değerini sıfırlayabilir.
+Why is a sweep alone not enough? The `12` in "Objects: 12" is not in the DOM, it
+is in the `Store`; a sweep cannot regenerate it. Why is a re-render alone not
+enough? Attributes like `title` / `placeholder` and button labels must change
+without the component being rebuilt; worse, a re-render could wipe the value of
+an `<input>` the user currently has focused.
 
-Sıra önemlidir: önce tarama, sonra yeniden çizim. Ters sırada tarama,
-bileşenin yeni düğümlerini göremez.
+Order matters: sweep first, then re-render. In the opposite order the sweep
+cannot see the component's newly created nodes.
 
-### `el()` entegrasyonu
+### `el()` integration
 
 ```js
 el('span', { i18n: 'topbar.btn.save' })
@@ -916,14 +935,14 @@ el('input', { i18nAttr: { title: 'topbar.btn.load.title' } })
 el('span', { i18n: 'status.objects', i18nArgs: { count: 12 } })
 ```
 
-Üretilen düğümler `data-i18n` ile işaretlenir, taramaya kendiliğinden katılır.
-JS'in ürettiği metinleri çeviriye sokmanın en ucuz yolu budur.
+The produced nodes are marked with `data-i18n` and join the sweep automatically.
+This is the cheapest way to get JS-produced text into the translation layer.
 
-### Asset kataloğu
+### Asset catalogue
 
-`catalog.js` içindeki Türkçe `name` / `label` alanları **kaynak metindir**;
-sözlüğe girmez. Dosya sonundaki normalizasyon adımı her kayda kimliğinden
-türetilen anahtar basar:
+The Turkish `name` / `label` fields in `catalog.js` are **source text** and do not
+enter the dictionary. The normalisation pass at the end of the file stamps every
+record with a key derived from its identity:
 
 ```
 asset.nameKey      = asset.name.<id>
@@ -932,185 +951,180 @@ schema.labelKey    = prop.<assetId>.<schemaKey>
 option.labelKey    = propopt.<assetId>.<schemaKey>.<value>
 ```
 
-Anahtar **asset kimliğiyle ayrıştırılır**, sadece alan adıyla değil:
-`waypoint.radius` "Yarıçap" iken `portal.radius` "Aktivasyon Yarıçapı"tır.
-Alan adına göre tekilleştirmek ya çakıştırır ya da yanlış metni gösterir.
+The key is qualified by the **asset identity**, not just the field name. In the
+Turkish dictionary, `waypoint.radius` is `"Yarıçap"` while `portal.radius` is
+`"Aktivasyon Yarıçapı"` (both quoted here verbatim from `tr.js` as evidence).
+Deduplicating by field name either collides or shows the wrong text under a
+misleading key.
 
-Yeni alan eklerken anahtar **otomatik** üretilir; eksiklik yalnızca "sözlükte
-karşılığı yok" olarak ortaya çıkar ve test onu raporlar.
+When you add a field the key is generated **automatically**; the only thing that
+can be missing is the dictionary entry, and the test reports it.
 
-### Açık modal pencereler
+### Open modal windows
 
-`openModal` gövdeyi bir kez kurar; dil değişirse bayat kalırdı. Çözüm:
-`opts.html` bir **fonksiyon** olarak da verilebilir, `refreshOpenModal()`
-onu yeniden çağırır. Yardım penceresi bu yolu kullanır
-(`Editor._helpHtml`), böylece açık pencere de anında çevrilir ve kaydırma
-konumu korunur.
+`openModal` builds its body once; it would go stale on a language change. The
+solution: `opts.html` may also be given as a **function**, and
+`refreshOpenModal()` calls it again. The help window uses this path
+(`Editor._helpHtml`), so an open window is translated instantly and the scroll
+position is preserved.
 
-### Konsol / hata ayıklama
+### Console / debugging
 
 ```js
 const { i18n, I18N_EVENT } = await import('/js/core/I18nManager.js');
 
-i18n.on(I18N_EVENT.MISSING, (a) => console.log('eksik:', a));
-i18n.on(I18N_EVENT.CHANGE, ({ language }) => console.log('dil:', language));
+i18n.on(I18N_EVENT.MISSING, (a) => console.log('missing:', a));
+i18n.on(I18N_EVENT.CHANGE, ({ language }) => console.log('language:', language));
 
 i18n.language          // 'tr' | 'en'
-i18n.languages         // seçici için [{ kod, ad, bayrak }]
-i18n.setLanguage('en') // olay yayınlar + DOM uygulanır
+i18n.languages         // [{ kod, ad, bayrak }] for the selector
+i18n.setLanguage('en') // emits the event + applies the DOM
 i18n.toggleLanguage()  // TR ⇄ EN
 i18n.exists('btn.save')
 ```
 
-### Test
+### Tests
 
 ```bash
 python dev_server.py 5174
-node tools/test-all.mjs        # iki paketi soğuk sayfada çalıştırır (163 test)
+node tools/test-all.mjs        # runs both suites on a cold page (163 tests)
 ```
 
-Ya da tarayıcı konsolundan:
+Or from the browser console:
 
 ```js
 const T = await import('/tools/test-i18n.js');
-await T.runI18nSuite();       // 65 test
+await T.runI18nSuite();       // 65 tests
 ```
 
-Kapsam: sözlük paritesi (iki dil), şablon/yer tutucu paritesi, çoğul
-seçimi, geri düşüş zinciri, DOM'daki **her** `data-i18n` anahtarının
-çözülebilirliği, `el()` entegrasyonu, katalog şema etiketleri, Inspector /
-Outliner / AssetPanel / StatusBar yeniden çizimi, localStorage kalıcılığı,
-bozuk kayıt toleransı, açık modalin yeniden kurulması, sayı biçimlendirme ve
-"DOM'da ham anahtar metni kalmadığı" denetimi.
+Coverage: dictionary parity across both languages, template/placeholder parity,
+plural selection, the fallback chain, resolvability of **every** `data-i18n` key
+in the DOM, `el()` integration, catalogue schema labels, re-rendering of
+Inspector / Outliner / AssetPanel / StatusBar, localStorage persistence,
+tolerance of a corrupt stored value, rebuilding an open modal, number formatting,
+and the "no raw key text left in the DOM" check.
 
-### Yeni dil eklerken
+### Adding a new language
 
-1. `js/i18n/<kod>.js` sözlüğü oluştur (TR'yi kopyala, çevir).
-2. `DILLER` dizisine `{ kod, ad, metin }` olarak ekle.
-3. `test-i18n.js`'deki parite denetimini güncelle: yeni dilin **düz**
-   anahtarlarının TR'de karşılığı olmalıdır.
+1. Create the `js/i18n/<code>.js` dictionary (copy TR, then translate).
+2. Add `{ kod, ad, metin }` to the `DILLER` array.
+3. Update the parity check in `test-i18n.js`: the new language's **plain** keys
+   must have a counterpart in TR.
 
 ---
 
-## 7. Asset Kataloğu
+## 7. Asset catalogue
 
-`js/assets/catalog.js` içindeki `ASSETS` dizisi tek yapılandırma noktasıdır:
+The `ASSETS` array in `js/assets/catalog.js` is the single configuration point:
 
 ```js
 {
-  id: 'npc',                    // JSON'a yazılan kod
+  id: 'npc',                    // the code written to JSON
   name: 'NPC',
-  category: 'game',             // panel grubu
-  footprint: [1, 2.1, 1],       // bilgi panelinde gösterilen taban ölçüsü
-  color: '#5ec8ff',             // varsayılan renk
+  category: 'game',             // panel group
+  footprint: [1, 2.1, 1],       // base size shown in the info panel
+  color: '#5ec8ff',             // default colour
   role: 'actor',                // prop | actor | marker | zone | light
-  icon: '<svg …>',              // panel ikonu
-  propsSchema: [ … ],           // Inspector'da üretilecek alanlar
-  defaultProps: { … }           // yeni nesneye uygulanan değerler
+  icon: '<svg …>',              // panel icon
+  propsSchema: [ … ],           // fields generated in the Inspector
+  defaultProps: { … }           // values applied to a new object
 }
 ```
 
-Yeni bir asset eklemek için:
+To add a new asset:
 
-1. `catalog.js` içine tanım ekleyin (ikon ve props şemasıyla)
-2. `AssetFactory.js` içindeki `BUILDERS` sözlüğüne aynı `id` ile bir üretici
-   ekleyin (`nt()` = renk değişimine duyarsız parça, `part()` = duyarlı parça)
+1. Add the definition to `catalog.js` (with icon and props schema)
+2. Add a builder under the same `id` in the `BUILDERS` map in `AssetFactory.js`
+   (`nt()` = part insensitive to the colour change, `part()` = sensitive part)
 
-Mevcut asset'ler: Küp, Kutu, Küre, Silindir, Koni, Halka, Düzlem, Merdiven,
-Ağaç, Çam, Çalı, Kaya, Dağ, Su, Ev, Kule, Duvar, Platform, Köprü, Kasa, Varil,
-Çit, Meşale, **NPC**, Oyuncu Doğuş, NPC Doğuş, **Waypoint**, Trigger, Portal,
-Toplanabilir, Sandık, Bariyer, Kamera Noktası, Nokta/Spot/Ambient Işık.
-
----
-
-## 8. Oyun Nesneleri (NPC akışı)
-
-1. `NPC` ekleyin, konumunu gizmo ile ayarlayın
-2. Yoluna `Waypoint` nesneleri koyun (sıra numarası Inspector'dan verilir)
-3. NPC'nin `Devriye Yarıçapı` değerini waypoint'leri kapsayacak şekilde ayarlayın
-4. `Space` ile **önizlemeyi** başlatın; NPC'ler `Hız` değerine göre yürür, +Z
-   yönüne döner ve waypoint başında `Bekleme` kadar durur
-5. Önizlemeden çıkınca konumlar **otomatik geri alınır** — deneme veri kaybettirmez
-
-`props` alanları doğrudan JSON'a yazıldığı için, kendi oyun motorunuzda
-patrol mantığını aynı alanlardan besleyebilirsiniz.
+Existing assets: Cube, Box, Sphere, Cylinder, Cone, Torus, Plane, Stairs, Tree,
+Pine, Bush, Rock, Mountain, Water, House, Tower, Wall, Platform, Bridge, Crate,
+Barrel, Fence, Torch, **NPC**, Player Spawn, NPC Spawn, **Waypoint**, Trigger,
+Portal, Pickup, Chest, Barrier, Camera Marker, Point/Spot/Ambient Light.
 
 ---
 
-## 9. Performans Notları
+## 8. Game objects (NPC workflow)
 
-* Zemin dokusu **gri tonlu** üretilir ve `material.color` ile renklendirilir;
-  zemin rengini değiştirmek dokuyu yeniden üretmez.
-* Dama deseni 2×2 bir `CanvasPattern` ile tek seferde serilir (hücre başına
-  `fillRect` yoktur).
-* `GridHelper` renkleri geometri yeniden kurulmadan `color` niteliğine yazılır
-  (GridHelper'ın renk düzeni belirlenimcidir: her bölme için 4 verteks).
-* `Object3D` aramaları `ObjectRegistry` ile O(1) yapılır (ağaç taraması yok).
-* `OBJECT_UPDATE` olayı yalnızca **gerçekten değişen alanları** taşır; gizmo
-  sürüklemesi sırasında renk/gölük/ışık yeniden uygulanmaz.
-* `Outliner` nesne güncellemesinde tüm listeyi değil yalnızca değişen satırı
-  tazeler.
-* `AmbientLight`/`HemisphereLight` nesnelerine `castShadow` atanmaz; atansaydı
-  three.js her karede uyarı basardı.
-* Otomatik kayıt 2,5 sn debounce ile yapılır.
-* Ölçülen değer: 101 nesne / ~13k üçgen → 60 FPS.
+1. Add an `NPC` and position it with the gizmo
+2. Place `Waypoint` objects along its route (the order number comes from the Inspector)
+3. Set the NPC's `Patrol Radius` so it covers the waypoints
+4. Press `Space` to start the **preview**; NPCs walk at their `Speed`, turn toward
+   +Z and wait `Pause` seconds at each waypoint
+5. Leaving the preview **reverts the positions automatically** — experimenting
+   loses no data
 
-## 10. Bilinen Sınırlar
-
-* Dokunmatik düzenleme hedeflenmemiştir (arayüzü dar ekranda sadeleşir).
-* Çoklu seçimde ölçekleme, `pivot` üzerinden oransal çalışır; ölçeklenmiş
-  nesnelerin *yerel* konumları pivot'a göreli tutulur, **dünya** konumları her
-  zaman kayıtlarla birebir eşleşir.
-* TransformControls'ın sürükleme matematiği three.js'e aittir; bu proje yalnızca
-  gizmo ↔ kayıt köprüsünü (`source: 'gizmo'`) yönetir.
-* Çarpışma (collision) hesabı yoktur; `trigger`/`portal` bölgeleri yalnızca
-  görsel + veri olarak tutulur.
-* `BinaryGridParser` **sezgisel** bir okuyucudur: yalnızca dosyanın başındaki
-  `[uint32 N][N×N float32]` bloğunu okur, kalan baytları atlar. Üçüncü parti
-  araçların tamamını çözebilmek için o aracın format açıklaması gerekir.
-  Konsol çıktısı atlanan bayt sayısını açıkça bildirir.
-* Arazi `Su Seviyesi` ve `Kıyı Bandı` yalnızca **görsel** renklendirmedir;
-  gerçek su/su birimi üretmez.
-* Referans ızgara `y = 0` düzlemindedir. Mutlak modda arazi bu düzlemin altına
-  inebilir; ızgarayı görsel gürültü olarak buluyorsanız üst çubuktaki
-  `Izgara` düğmesiyle kapatabilirsiniz.
+Because the `props` fields are written straight into JSON, you can feed the same
+fields into the patrol logic of your own game engine.
 
 ---
 
-## 11. Tarayıcı Desteği
+## 9. Performance notes
 
-Chrome / Edge / Firefox / Safari güncel sürümleri (WebGL2). Mobil dokunmatik
-düzenleme hedeflenmemiştir; arayüz dar ekranlarda 1180 px ve 900 px kırılım
-noktalarıyla sadeleşir.
+* The ground texture is generated in **greyscale** and tinted via
+  `material.color`; changing the ground colour does not regenerate the texture.
+* The checker pattern is tiled once as a 2×2 unit `CanvasPattern` (no per-cell
+  `fillRect`).
+* `GridHelper` colours are written to the `color` attributes without rebuilding
+  the geometry (GridHelper's colour layout is deterministic: 4 vertices per line).
+* `Object3D` lookups are O(1) via `ObjectRegistry` (no tree traversal).
+* The `OBJECT_UPDATE` event only carries the fields that **actually changed**;
+  during a gizmo drag, colour/shadow/light are not reapplied.
+* The `Outliner` refreshes only the changed row on an object update, not the
+  whole list.
+* `castShadow` is not assigned to `AmbientLight`/`HemisphereLight` objects; if it
+  were, three.js would print a warning on every frame.
+* Automatic save is debounced by 2.5 s.
+* Measured: 101 objects / ~13k triangles → 60 FPS.
+
+## 10. Known limitations
+
+* Touch editing is not a target (the interface simplifies on narrow screens).
+* In multi-selection, scaling works proportionally through the `pivot`; the
+  *local* positions of scaled objects are kept relative to the pivot, while
+  **world** positions always match the records exactly.
+* TransformControls' drag maths belong to three.js; this project only manages
+  the gizmo ↔ record bridge (`source: 'gizmo'`).
+* There is no collision computation; `trigger`/`portal` zones are stored as
+  visuals + data only.
+* `BinaryGridParser` is a **heuristic** reader: it only reads the
+  `[uint32 N][N×N float32]` block at the start of the file and skips the rest.
+  Fully parsing a third-party tool's output requires that tool's format
+  specification. The console output states the number of skipped bytes plainly.
+* Terrain `Water Level` and `Shore Band` are **visual** tinting only; they do not
+  produce real water or a water volume.
+* The reference grid is on the `y = 0` plane. In absolute mode the terrain can
+  dip below it; if you find the grid visually noisy you can switch it off with
+  the `Grid` button in the top bar.
 
 ---
 
-## Lisans
+## 11. Browser support
 
-**MIT** — telif sahibi: [ahmtsylk1](https://github.com/ahmtsylk1) · tam metin: [`LICENSE`](LICENSE)
+Current versions of Chrome / Edge / Firefox / Safari (WebGL2). Touch editing is
+not a target; the interface simplifies at the 1180 px and 900 px breakpoints.
 
-Bu depo **üçüncü taraf içerik de** içerir ve yeniden dağıtır. MIT lisansı,
-telif bildiriminin kopyalarda korunmasını şart koşar; ilgili bildirimler
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) dosyasındadır:
+---
 
-| İçerik | Konum | Telif / Lisans |
+## License
+
+**MIT** — copyright holder: [ahmtsylk1](https://github.com/ahmtsylk1) · full text: [`LICENSE`](LICENSE)
+
+This repository also **redistributes third-party content**. The MIT licence
+requires the copyright notice to be preserved in copies; the relevant notices
+are in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md):
+
+| Content | Location | Copyright / Licence |
 |---|---|---|
-| 400 adet `.glb` model | `public/assets/imported/` | Copyright (c) 2026 Levy Street — MIT (World of Claudecraft v0.43.3) |
+| 400 `.glb` models | `public/assets/imported/` | Copyright (c) 2026 Levy Street — MIT (World of Claudecraft v0.43.3) |
 | Basis transcoder (`.wasm` + `.js`) | `public/vendor/basis/` | three.js r160 — MIT |
-| Render motoru | CDN'den (depoda yok) | three.js — MIT |
-| Sentez test verisi | `testdata/*` | Bu depoya ait (sentetik) |
-| ⚠️ Gerçek dünya heightmap'leri | `testdata/user/` | **Kaynak doğrulanmamış** — halka açık yapmadan önce aşağıya bakın |
+| Render engine | from CDN (not in the repo) | three.js — MIT |
+| Synthetic test data | `testdata/*` | Belongs to this repository (synthetic) |
+| ⚠️ Real-world heightmaps | `testdata/user/` | **Provenance unverified** — read the note below before making the repo public |
 
-> **`testdata/user/` uyarısı.** Bu klasördeki 7 dosya (Moradon, Luferson,
-> Elmorad, Ronarkland, Ardream, Eslant — ~6.7 MB) gerçek dünya verisidir ve
-> kökeni belgelenmemiştir. Test paketi bu klasörü kullanır ama **zorunlu
-> değildir**; yoksa ilgili testler sessizce atlanır ve kalan testler geçer.
-> Depoyu herkese açık yapmadan önce ya lisansını doğrulayın ya da
-> `git rm -r --cached testdata/user` ile çıkarın.
-=======
-# threejs-map-editor
-Modern web-based 3D level editor built with Three.js with NPY/SMD import, automated thumbnails, and store-driven architecture.
->>>>>>> c893348f5a05ec0505cb8e42ac93b4d83c310dcf
-=======
-
->>>>>>> 9236b0979a2985f6d0b4a71eee4b07a1789b4d0a
+> **`testdata/user/` warning.** The 7 files in this folder (Moradon, Luferson,
+> Elmorad, Ronarkland, Ardream, Eslant — ~6.7 MB) are real-world data and their
+> provenance is not documented. The test suite uses this folder but it is **not
+> required**; if it is absent the relevant tests are silently skipped and the
+> remaining tests pass. Before making the repository public, either verify the
+> licence or remove the folder with `git rm -r --cached testdata/user`.
