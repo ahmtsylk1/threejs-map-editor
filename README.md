@@ -2,7 +2,6 @@
 A modern 3D level editor for web games, written with **Three.js** and structured
 as **Vanilla JavaScript / ES6 modules**.
 
-<<<<<<< HEAD
 * **Dynamic map size** of 2048 / 1024 / 512 units
 * **Asset Panel** on the left (add by click or drag-and-drop)
 * **Inspector** on the right: position / rotation / scale + gameplay fields
